@@ -2,7 +2,23 @@ import argparse
 import matplotlib as mpl
 import matplotlib.pyplot as plt
 import numpy as np
-from contour import smooth_2d_histogram, contour_at_level, contour_plots
+import sys
+from scipy.ndimage import gaussian_filter
+
+sys.path.append("../src/boundedcontours/")
+from contour import (
+    smooth_with_condition,
+    smooth_2d_histogram,
+    contour_at_level,
+    contour_plots,
+)
+from correlate import (
+    _gaussian_kernel1d,
+    # _gaussian_kernel2d,
+    gaussian_filter_2d_convolve_2d,
+    gaussian_filter1d,
+    gaussian_filter2d,
+)
 
 
 def get_test_data(N=2000):
@@ -21,6 +37,68 @@ def set_axis(ax, x=(-4, 4), y=(-4, 4)):
     ax.set_xlim(x)
     ax.set_ylim(y)
     ax.set_aspect("equal")
+
+
+def test_smooth_with_condition():
+    x, y = get_test_data()
+    bins = 10
+    H, bins_x, bins_y = np.histogram2d(x, y, bins=bins, density=True)
+    X, Y = np.meshgrid((bins_x[1:] + bins_x[:-1]) / 2, (bins_y[1:] + bins_y[:-1]) / 2)
+    cond = X > Y
+    H = H.T  # output of histogram2d is [y, x] but we want [x, y]
+    H[0, :] = 0
+    H[:, 0] = 0
+    H[~cond] = 0
+    sigma_smooth = 1.0
+    truncate = 1.0
+    H_smooth = smooth_with_condition(
+        H, cond=cond, sigma=sigma_smooth, truncate=truncate
+    )
+    H_smooth_no_cond = gaussian_filter(
+        H,
+        sigma=sigma_smooth,
+        truncate=truncate,
+    )
+    H_convolve = gaussian_filter_2d_convolve_2d(
+        H, sigma_smooth, truncate=truncate, cond=cond
+    )
+    H_guassian2d = gaussian_filter2d(H, sigma_smooth, truncate=truncate)
+    print(
+        sum(H.flatten()),
+        sum(H_smooth.flatten()),
+        sum(H_smooth_no_cond.flatten()),
+        sum(H_convolve.flatten()),
+        sum(H_guassian2d.flatten()),
+    )
+
+    # output the sum of each version of the hist to file
+    fname = "NOWHERE-zeroed_test_smooth_with_condition"
+    with open(f"/tmp/{fname}.txt", "w") as f:
+        f.write(
+            f"sum(H) = {sum(H.flatten())}\n"
+            f"sum(H_smooth) = {sum(H_smooth.flatten())}\n"
+            f"sum(H_smooth_no_cond) = {sum(H_smooth_no_cond.flatten())}\n"
+            f"sum(H_convolve) = {sum(H_convolve.flatten())}\n"
+            f"sum(H_guassian2d) = {sum(H_guassian2d.flatten())}\n"
+        )
+    print(np.all(H_smooth == H))
+    axs = plt.subplots(1, 5, figsize=(10, 5))[1]
+    ax1, ax2, ax3, ax4, ax5 = axs
+    ax1.pcolormesh(X, Y, H)
+    ax1.set_title("before smooth")
+    ax2.pcolormesh(X, Y, H_smooth)
+    ax2.set_title("after smooth")
+    ax3.pcolormesh(X, Y, H_smooth_no_cond)
+    ax3.set_title("after (no cond)")
+    ax4.pcolormesh(X, Y, H_convolve)
+    ax4.set_title("(convolve)")
+    ax5.pcolormesh(X, Y, H_guassian2d)
+    ax5.set_title("(gaussian2d)")
+
+    for ax in axs:
+        set_axis(ax)
+    plt.savefig(f"/tmp/{fname}.png")
+    plt.show()
 
 
 def test_smooth_2d_histogram(make_plots=True):
@@ -190,13 +268,111 @@ def test_contour_plots():
     plt.show()
 
 
+def test_gaussian_1d():
+    for a in [
+        np.array([1.0, 2.0, 3.0, 4.0, 5.0], dtype=float),
+        np.random.random(10),
+    ]:
+        out = gaussian_filter1d(a, 1)
+        out2 = gaussian_filter(a, 1)
+        print("gaussian_filter1d:", out)
+        print("gaussian_filter:", out2)
+        assert np.allclose(out, out2), "gaussian_filter1d and gaussian_filter disagree"
+
+
+def test_gaussian_2d():
+    for a in [
+        np.array(
+            [
+                [0, 2, 4, 6, 8],
+                [10, 12, 14, 16, 18],
+                [20, 22, 24, 26, 28],
+                [30, 32, 34, 36, 38],
+                [40, 42, 44, 46, 48],
+            ],
+            dtype=float,
+        ),
+        np.random.random((10, 10)),
+    ]:
+        out = gaussian_filter2d(a, 1)
+        out2 = gaussian_filter(a, 1)
+        print("gaussian_filter2d:", out)
+        print("gaussian_filter:", out2)
+        assert np.allclose(out, out2), "gaussian_filter2d and gaussian_filter disagree"
+
+
+def test_compare_convolve2d_with_padding():
+    truncate = 1.0
+    sigma = np.sqrt(-1 / (2 * np.log(0.5)))
+    a = np.array([1.0, 2.0, 3.0, 4.0, 5.0], dtype=float)
+    expected_output = np.array([1.42704095, 2.06782203, 3.0, 3.93217797, 4.57295905])
+    print(np.array(gaussian_filter1d(a, 1), dtype=float))
+    print(f"{expected_output=}")
+
+    a = np.array(
+        [
+            [0, 2, 4, 6, 8],
+            [10, 12, 14, 16, 18],
+            [20, 22, 24, 26, 28],
+            [30, 32, 34, 36, 38],
+            [40, 42, 44, 46, 48],
+        ],
+        dtype=float,
+    )
+    expected_output = np.array(
+        [
+            [4, 6, 8, 9, 11],
+            [10, 12, 14, 15, 17],
+            [20, 22, 24, 25, 27],
+            [29, 31, 33, 34, 36],
+            [35, 37, 39, 40, 42],
+        ]
+    )
+    out = np.array(gaussian_filter2d(a, sigma, truncate=truncate), dtype=float)
+    print(out)
+    print(f"{expected_output=}")
+    print("Sum of out:", np.sum(out))
+    print("Sum of input:", np.sum(a))
+
+    print("\n")
+    print("Again with convolve2d:")
+    out = gaussian_filter_2d_convolve_2d(a, sigma, truncate=truncate)
+    print(out)
+    print(f"{expected_output=}")
+    print("Sum of out:", np.sum(out))
+    print("Sum of input:", np.sum(a))
+
+    print("\n")
+    print("Again with ndimage.gaussian_filter:")
+    out = gaussian_filter(a, sigma, truncate=truncate)
+    print(out)
+    print("Sum of out:", np.sum(out))
+
+
+def test_convolve2d_with_condition():
+    # choose a sigma s.t. the kernel falls to half its value in one pixel steps
+    sigma = np.sqrt(-1 / (2 * np.log(0.5)))
+    # therefore we know the normalized kernal in 1d with a radius of 1 will be
+    # [0.25, 0.5, 0.25]
+    # first test this is in fact the case
+    kernel = _gaussian_kernel1d(sigma, 1)
+    print(f"{kernel=}")
+    assert np.allclose(kernel, np.array([0.25, 0.5, 0.25]))
+    print("Kernel is [0.25, 0.5, 0.25] as expected")
+
+
 parser = argparse.ArgumentParser()
 parser.add_argument("--make_plots", action="store_true")
 args = parser.parse_args()
 make_plots = args.make_plots
 
-test_smooth_2d_histogram(make_plots)
+# test_gaussian_1d()
+# test_gaussian_2d()
+# test_convolve2d_with_condition()
+test_compare_convolve2d_with_padding()
+# test_smooth_with_condition()
+# test_smooth_2d_histogram(make_plots)
 
-if make_plots:
-    test_contour_at_level()
-    test_contour_plots()
+# if make_plots:
+#     test_contour_at_level()
+#     test_contour_plots()

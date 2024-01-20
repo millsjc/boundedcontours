@@ -22,9 +22,8 @@ def level_from_credible_interval(H: np.ndarray, p_level: float = 0.9) -> float:
     level : float
         The value of H at the desired credible interval.
     """
-    # Flatten the histogram into a 1D array and sort it in descending order
+    # Sort it in descending order and calculate the cumulative probability
     H_flat = sorted(H.flatten(), reverse=True)
-    # Calculate the cumulative probability of each bin
     cumulative_prob = np.cumsum(H_flat)
     # Find the bin with a cumulative probability greater than the desired
     # level and return the value of the bin
@@ -49,7 +48,7 @@ def smooth_with_condition(
     H : 2d array
         the input array in [x, y] order (see Notes)
     cond : 2d array of bools
-        must be the same shape as H
+        whether [x,y] meets the condition must be the same shape as H
     sigma : float, optional
         the std of the smoothing gaussian, by default 1
     truncate : int, optional
@@ -97,6 +96,7 @@ def smooth_with_condition(
 
     # Determine the size of the Gaussian window to use based on truncate and sigma
     window_radius = int(truncate * sigma + 0.5)
+    print(f"{window_radius=}")
 
     # Create an array to hold the smoothed image
     H_smooth = np.zeros_like(H)
@@ -104,8 +104,8 @@ def smooth_with_condition(
     # For each pixel in the image...
     for i in range(H.shape[0]):
         for j in range(H.shape[1]):
-            if not cond[i, j]:
-                continue
+            # if not cond[i, j]:
+            #     continue
             # Define the bounds of the window
             x_start = max(0, i - window_radius)
             x_end = min(H.shape[0], i + window_radius + 1)
@@ -116,6 +116,7 @@ def smooth_with_condition(
             x = np.arange(x_start, x_end, dtype=H.dtype)[:, np.newaxis]
             y = np.arange(y_start, y_end, dtype=H.dtype)
 
+            # should define and normalize this once outside the loop and simply cut it down and renormalize when we are at the edges.
             kernel = symmetric_2d_gaussian(x, y, i, j, sigma)
 
             assert kernel.shape == (
@@ -124,7 +125,7 @@ def smooth_with_condition(
             ), "kernel has the wrong shape"
 
             # Zero out the kernel where the condition is not met
-            kernel[~cond[x_start:x_end, y_start:y_end]] = 0
+            # kernel[~cond[x_start:x_end, y_start:y_end]] = 0
 
             # Normalize the kernel so it sums to 1
             kernel = kernel / np.sum(kernel)
@@ -178,7 +179,9 @@ def smooth_2d_histogram(
     H = H.T  # output of histogram2d is [y, x] but we want [x, y]
     # do some smoothing
     if condition is None:
-        H = gaussian_filter(H, sigma=sigma_smooth, **gaussian_filter_kwargs)
+        H = gaussian_filter(
+            H, sigma=sigma_smooth, truncate=truncate, **gaussian_filter_kwargs
+        )
     elif condition.lower() == "x>y":
         H = smooth_with_condition(H, cond=X > Y, sigma=sigma_smooth, truncate=truncate)
     else:
