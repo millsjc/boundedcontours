@@ -328,7 +328,13 @@ def test_compare_convolve2d_with_padding():
             [35, 37, 39, 40, 42],
         ]
     )
+    # time the two methods
+    import time
+
+    start = time.time()
     out = np.array(gaussian_filter2d(a, sigma, truncate=truncate), dtype=float)
+    end = time.time()
+    print("gaussian_filter2d took", (end - start) * 1000, "milliseconds")
     print(out)
     print(f"{expected_output=}")
     print("Sum of out:", np.sum(out))
@@ -336,7 +342,10 @@ def test_compare_convolve2d_with_padding():
 
     print("\n")
     print("Again with convolve2d:")
+    start = time.time()
     out = gaussian_filter_2d_convolve_2d(a, sigma, truncate=truncate)
+    end = time.time()
+    print("gaussian_filter_2d_convolve_2d took", (end - start) * 1000, "milliseconds")
     print(out)
     print(f"{expected_output=}")
     print("Sum of out:", np.sum(out))
@@ -344,7 +353,10 @@ def test_compare_convolve2d_with_padding():
 
     print("\n")
     print("Again with ndimage.gaussian_filter:")
+    start = time.time()
     out = gaussian_filter(a, sigma, truncate=truncate)
+    end = time.time()
+    print("gaussian_filter took", (end - start) * 1000, "milliseconds")
     print(out)
     print("Sum of out:", np.sum(out))
 

@@ -2,20 +2,21 @@ from numba import jit
 import numpy as np
 
 
-# @jit
-def correlate1d(input_array, weights, mode="symmetric", padded_input=None):
+@jit
+def correlate1d(padded_input, weights):
     # Ensure input and weights are numpy arrays
-    input_array = np.asarray(input_array)
+    padded_input = np.asarray(padded_input)
     weights = np.asarray(weights)
 
     # Calculate the size of the weights and the padding on each side
     filter_size = len(weights)
 
-    # Initialize the output array
-    output = np.zeros_like(input_array)
+    # Initialize the output arra
+    n = len(padded_input) - filter_size + 1
+    output = np.zeros(n)
 
     # Perform the correlation operation
-    for i in range(len(input_array)):
+    for i in range(n):
         window = padded_input[i : i + filter_size]
         output[i] = np.sum(window * weights)
 
@@ -36,22 +37,12 @@ def _gaussian_kernel2d(sigma, radius):
     return weights
 
 
-def _gaussian_kernel2d_2(sigma, radius):
-    x = np.arange(-radius, radius + 1)
-    y = np.arange(-radius, radius + 1)
-    x, y = np.meshgrid(x, y)
-    x_mean = 0
-    y_mean = 0
-    weights = np.exp(-0.5 * ((x - x_mean) ** 2 + (y - y_mean) ** 2) / sigma**2)
-    # weights = weights / weights.sum()
-    return weights
-
-
-def gaussian_filter1d(input, sigma, mode="symmetric", truncate=4.0, *, radius=None):
+def gaussian_filter1d(
+    input, sigma, mode="symmetric", truncate=4.0, *, radius=None, cond=None
+):
     """FIXME: consider removing the mode argument and just using symmetric padding (since we hard code symmetric padding for reflection at boundaries other than the edge)."""
-    sd = float(sigma)
     # make the radius of the filter equal to truncate standard deviations
-    lw = int(truncate * sd + 0.5)
+    lw = int(truncate * sigma + 0.5)
     if radius is not None:
         lw = radius
     # Since we are calling correlate, not convolve, revert the kernel
@@ -62,68 +53,123 @@ def gaussian_filter1d(input, sigma, mode="symmetric", truncate=4.0, *, radius=No
         pad_width=((lw, lw),),
         mode=mode,
     )
-    return correlate1d(input, weights, mode)
+    if cond is not None:
+        # pad symmetrically around the boundary
+        padded_input = pad_boundary(padded_input, cond, lw)
+
+    out = correlate1d(padded_input, weights)
+    if cond is not None:
+        # remove the padding around the boundary.
+        out[~cond] = 0
+    return out
 
 
-def pad(input_array, cond, pad_width, axis, mode="symmetric"):
+def pad_boundary(input_array, cond, pad_width):
     """Where there is a boundary s.t. there is a transition from True to False values in cond,
-    pad the False (0) values with the values from the other side of the boundary. There will only be a maximum of two boundaries per row.
+    pad the False (0) values with the symmetric reflected values from the other side of the boundary.
+    There will only be a maximum of two boundaries per row.
     e.g. for the 2-boundary cond = [0, 0, 1, 1, 1, 0, 0, 0, 0, 0] and with pad_width=1, the symmetric mode, and the input
     [0,0,1,2,3,0,0,0,0,0], the output is [0,1,1,2,3,3,0,0,0,0].
-
-    Parameters
-    ----------
-    input_array : _type_
-        _description_
-    cond : _type_
-        _description_
-    pad_width : _type_
-        _description_
-    axis : _type_
-        _description_
-    mode : str, optional
-        _description_, by default "symmetric"
-
-    Returns
-    -------
-    _type_
-        _description_
     """
-    padded_input = np.pad(input_array, pad_width, mode=mode)
+    padded_input = np.copy(input_array)
+    # Convert cond to int for diff calculation
+    cond_int = cond.astype(int)
+    # Calculate the diff to find transitions
+    diff_cond = np.diff(cond_int)
+
+    n_transitions = np.sum(np.abs(diff_cond))
+    assert n_transitions <= 2, "There should be at most two boundaries per row."
+    if n_transitions == 2:
+        # check the boundaries are at least pad_width apart
+        change_indices = np.where(diff_cond != 0)[0]
+        assert change_indices[1] - change_indices[0] >= pad_width, (
+            "The boundaries are too close together, choose a different kernel"
+            " radius/truncation."
+        )
+
+    for i in range(len(diff_cond)):
+        if diff_cond[i] == -1:  # True to False transition
+            # Reflect values to the right
+            for j in range(1, pad_width + 1):
+                if i + j < len(input_array):
+                    padded_input[i + j] = input_array[i - j + 1]
+        elif diff_cond[i] == 1:  # False to True transition
+            # Reflect values to the left
+            for j in range(1, pad_width + 1):
+                if i + 1 - j >= 0:
+                    padded_input[i + 1 - j] = input_array[i + j]
 
     return padded_input
+
+
+def test_pad_boundary():
+    test_cases = [
+        (
+            np.array([0, 0, 1, 1, 1, 0, 0, 0, 0, 0]),
+            np.array([0, 0, 1, 2, 3, 0, 0, 0, 0, 0]),
+            1,
+            np.array([0, 1, 1, 2, 3, 3, 0, 0, 0, 0]),
+        ),
+        (
+            np.array([0, 0, 1, 1, 1, 0, 0, 0, 0, 0]),
+            np.array([0, 0, 1, 2, 3, 0, 0, 0, 0, 0]),
+            3,
+            np.array([2, 1, 1, 2, 3, 3, 2, 1, 0, 0]),
+        ),
+        (
+            np.array([1, 1, 1, 0, 0, 0]),
+            np.array([1, 2, 3, 0, 0, 0]),
+            1,
+            np.array([1, 2, 3, 3, 0, 0]),
+        ),
+        (
+            np.array([0, 0, 0, 1, 1, 1]),
+            np.array([0, 0, 0, 1, 2, 3]),
+            1,
+            np.array([0, 0, 1, 1, 2, 3]),
+        ),
+        (
+            np.array([0, 0, 0, 1, 1, 1]),
+            np.array([0, 0, 0, 1, 2, 3]),
+            3,
+            np.array([3, 2, 1, 1, 2, 3]),
+        ),
+        (
+            np.array([0, 0, 0, 1, 1, 1]),
+            np.array([0, 0, 0, 1, 2, 3]),
+            10,
+            np.array([3, 2, 1, 1, 2, 3]),
+        ),
+    ]
+
+    for i, (cond, input_array, pad_width, expected) in enumerate(test_cases):
+        assert np.all(
+            pad_boundary(input_array, cond, pad_width) == expected
+        ), "Test case {} failed".format(i)
+
+    print("test_pad_boundary passed")
 
 
 def gaussian_filter2d(
     input, sigma, output=None, mode="symmetric", truncate=4.0, cond=None
 ):
     output = np.zeros_like(input)
-    # pad_width = int(truncate * sigma + 0.5)
-    for axis in [0, 1]:
-        # if axis == 0:
-        # input = pad(input, cond, pad_width, axis, mode=mode)
+    for axis, slice_func in enumerate(
+        (
+            lambda i: (i),  # [i, :]
+            lambda i: (slice(None), i),  # [:, i]
+        )
+    ):
         for i in range(input.shape[axis]):
-            output[i] = gaussian_filter1d(
-                input[i],
+            output[slice_func(i)] = gaussian_filter1d(
+                input[slice_func(i)],
                 sigma,
                 mode=mode,
                 truncate=truncate,
+                cond=cond[slice_func(i)] if cond is not None else None,
             )
-            input = output
-        # else:
-        # if cond is not None:
-        # remove the padding from the previous axis
-        # this time we use the previous output as input
-        # output[~cond] = 0
-        # breakpoint()
-        # # output = pad(output, cond, pad_width, axis, mode=mode)
-        # for i in range(input.shape[axis]):
-        #     output[:, i] = gaussian_filter1d(
-        #         output[:, i],
-        #         sigma,
-        #         mode=mode,
-        #         truncate=truncate,
-        #     )
+
+        input = output
 
     if cond is not None:
         # remove the padding around the boundary.
@@ -168,7 +214,6 @@ def convolve2d_with_symmetric_padding(input_array, kernel):
             output[i, j] = np.sum(
                 padded_input[i : i + kernel_rows, j : j + kernel_cols] * kernel
             )
-        # breakpoint()
 
     return output
 
@@ -182,6 +227,5 @@ def gaussian_filter_2d_convolve_2d(
     if radius is not None:
         lw = radius
     kernel = _gaussian_kernel2d(sigma, lw)
-    breakpoint()
 
     return convolve2d_with_symmetric_padding(input, kernel)
