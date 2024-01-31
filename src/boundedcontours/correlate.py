@@ -37,38 +37,11 @@ def _gaussian_kernel2d(sigma, radius):
     return weights
 
 
-def gaussian_filter1d(
-    input, sigma, mode="symmetric", truncate=4.0, *, radius=None, cond=None
-):
-    """FIXME: consider removing the mode argument and just using symmetric padding (since we hard code symmetric padding for reflection at boundaries other than the edge)."""
-    # make the radius of the filter equal to truncate standard deviations
-    lw = int(truncate * sigma + 0.5)
-    if radius is not None:
-        lw = radius
-    # Since we are calling correlate, not convolve, revert the kernel
-    weights = _gaussian_kernel1d(sigma, lw)[::-1]
-
-    padded_input = np.pad(
-        input,
-        pad_width=((lw, lw),),
-        mode=mode,
-    )
-    if cond is not None:
-        # pad symmetrically around the boundary
-        padded_input = pad_boundary(padded_input, cond, lw)
-
-    out = correlate1d(padded_input, weights)
-    if cond is not None:
-        # remove the padding around the boundary.
-        out[~cond] = 0
-    return out
-
-
 def pad_boundary(input_array, cond, pad_width):
     """Where there is a boundary s.t. there is a transition from True to False values in cond,
     pad the False (0) values with the symmetric reflected values from the other side of the boundary.
     There will only be a maximum of two boundaries per row.
-    e.g. for the 2-boundary cond = [0, 0, 1, 1, 1, 0, 0, 0, 0, 0] and with pad_width=1, the symmetric mode, and the input
+    e.g. for the 2-boundary cond = [0, 0, 1, 1, 1, 0, 0, 0, 0, 0].astype(bool) and with pad_width=1, the symmetric mode, and the input
     [0,0,1,2,3,0,0,0,0,0], the output is [0,1,1,2,3,3,0,0,0,0].
     """
     padded_input = np.copy(input_array)
@@ -102,58 +75,38 @@ def pad_boundary(input_array, cond, pad_width):
     return padded_input
 
 
-def test_pad_boundary():
-    test_cases = [
-        (
-            np.array([0, 0, 1, 1, 1, 0, 0, 0, 0, 0]),
-            np.array([0, 0, 1, 2, 3, 0, 0, 0, 0, 0]),
-            1,
-            np.array([0, 1, 1, 2, 3, 3, 0, 0, 0, 0]),
-        ),
-        (
-            np.array([0, 0, 1, 1, 1, 0, 0, 0, 0, 0]),
-            np.array([0, 0, 1, 2, 3, 0, 0, 0, 0, 0]),
-            3,
-            np.array([2, 1, 1, 2, 3, 3, 2, 1, 0, 0]),
-        ),
-        (
-            np.array([1, 1, 1, 0, 0, 0]),
-            np.array([1, 2, 3, 0, 0, 0]),
-            1,
-            np.array([1, 2, 3, 3, 0, 0]),
-        ),
-        (
-            np.array([0, 0, 0, 1, 1, 1]),
-            np.array([0, 0, 0, 1, 2, 3]),
-            1,
-            np.array([0, 0, 1, 1, 2, 3]),
-        ),
-        (
-            np.array([0, 0, 0, 1, 1, 1]),
-            np.array([0, 0, 0, 1, 2, 3]),
-            3,
-            np.array([3, 2, 1, 1, 2, 3]),
-        ),
-        (
-            np.array([0, 0, 0, 1, 1, 1]),
-            np.array([0, 0, 0, 1, 2, 3]),
-            10,
-            np.array([3, 2, 1, 1, 2, 3]),
-        ),
-    ]
+def gaussian_filter1d(input, sigma, truncate=4.0, *, radius=None, cond=None):
+    # make the radius of the filter equal to truncate standard deviations
+    lw = int(truncate * sigma + 0.5)
+    if radius is not None:
+        lw = radius
+    # Since we are calling correlate, not convolve, revert the kernel
+    weights = _gaussian_kernel1d(sigma, lw)[::-1]
 
-    for i, (cond, input_array, pad_width, expected) in enumerate(test_cases):
-        assert np.all(
-            pad_boundary(input_array, cond, pad_width) == expected
-        ), "Test case {} failed".format(i)
+    padded_input = np.pad(
+        input,
+        pad_width=((lw, lw),),
+        mode="symmetric",
+    )
+    if cond is not None:
+        # pad symmetrically around the boundary
+        padded_input[lw:-lw] = pad_boundary(input, cond, lw)
 
-    print("test_pad_boundary passed")
+    out = correlate1d(padded_input, weights)
+    if cond is not None:
+        # breakpoint()
+        # remove the padding around the boundary.
+        out[~(cond.astype(bool))] = 0
+    return out
 
 
-def gaussian_filter2d(
-    input, sigma, output=None, mode="symmetric", truncate=4.0, cond=None
-):
+def gaussian_filter2d(input, sigma, output=None, truncate=4.0, cond=None):
     output = np.zeros_like(input)
+    if cond is not None:
+        # check that input is zero where cond is False
+        assert np.all(
+            input[~(cond.astype(bool))] == 0
+        ), "The input should be zero where cond is False."
     for axis, slice_func in enumerate(
         (
             lambda i: (i),  # [i, :]
@@ -164,16 +117,15 @@ def gaussian_filter2d(
             output[slice_func(i)] = gaussian_filter1d(
                 input[slice_func(i)],
                 sigma,
-                mode=mode,
                 truncate=truncate,
                 cond=cond[slice_func(i)] if cond is not None else None,
             )
 
         input = output
 
-    if cond is not None:
-        # remove the padding around the boundary.
-        output[~cond] = 0
+    # if cond is not None:
+    #     # remove the padding around the boundary.
+    #     output[~(cond).astype(bool)] = 0
 
     return output
 

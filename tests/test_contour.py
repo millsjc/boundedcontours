@@ -2,10 +2,8 @@ import argparse
 import matplotlib as mpl
 import matplotlib.pyplot as plt
 import numpy as np
-import sys
 from scipy.ndimage import gaussian_filter
 
-sys.path.append("../src/boundedcontours/")
 from contour import (
     smooth_with_condition,
     smooth_2d_histogram,
@@ -18,6 +16,7 @@ from correlate import (
     gaussian_filter_2d_convolve_2d,
     gaussian_filter1d,
     gaussian_filter2d,
+    pad_boundary,
 )
 
 
@@ -280,6 +279,25 @@ def test_gaussian_1d():
         assert np.allclose(out, out2), "gaussian_filter1d and gaussian_filter disagree"
 
 
+def test_gaussian_filter1d():
+    d = np.array([0, 0, 1, 2, 3, 0, 0, 0, 0, 0])
+    cond = np.array([0, 0, 1, 1, 1, 1, 1, 1, 1, 1])
+    sigma = 1
+    truncate = 1
+    out = gaussian_filter1d(d, sigma, truncate=truncate, cond=cond)
+    print("Sum of output: ", np.sum(out))
+    print("Sum of input: ", np.sum(d))
+    breakpoint()
+    print("Sum of input where cond is True: ", np.sum(d[cond.astype(bool)]))
+
+    d = np.array([0, 0, 1, 3.4, 2.2, 3.4, 1.2, 0, 0, 0])
+    cond = np.array([0, 0, 1, 1, 1, 1, 1, 1, 1, 1])
+    out = gaussian_filter1d(d, sigma, truncate=truncate, cond=cond)
+    print("Sum of output: ", np.sum(out))
+    print("Sum of input: ", np.sum(d))
+    print("Sum of input where cond is True: ", np.sum(d[cond.astype(bool)]))
+
+
 def test_gaussian_2d():
     for a in [
         np.array(
@@ -301,6 +319,55 @@ def test_gaussian_2d():
         assert np.allclose(out, out2), "gaussian_filter2d and gaussian_filter disagree"
 
 
+
+def test_pad_boundary():
+    test_cases = [
+        (
+            np.array([0, 0, 1, 1, 1, 0, 0, 0, 0, 0]),
+            np.array([0, 0, 1, 2, 3, 0, 0, 0, 0, 0]),
+            1,
+            np.array([0, 1, 1, 2, 3, 3, 0, 0, 0, 0]),
+        ),
+        (
+            np.array([0, 0, 1, 1, 1, 0, 0, 0, 0, 0]),
+            np.array([0, 0, 1, 2, 3, 0, 0, 0, 0, 0]),
+            3,
+            np.array([2, 1, 1, 2, 3, 3, 2, 1, 0, 0]),
+        ),
+        (
+            np.array([1, 1, 1, 0, 0, 0]),
+            np.array([1, 2, 3, 0, 0, 0]),
+            1,
+            np.array([1, 2, 3, 3, 0, 0]),
+        ),
+        (
+            np.array([0, 0, 0, 1, 1, 1]),
+            np.array([0, 0, 0, 1, 2, 3]),
+            1,
+            np.array([0, 0, 1, 1, 2, 3]),
+        ),
+        (
+            np.array([0, 0, 0, 1, 1, 1]),
+            np.array([0, 0, 0, 1, 2, 3]),
+            3,
+            np.array([3, 2, 1, 1, 2, 3]),
+        ),
+        (
+            np.array([0, 0, 0, 1, 1, 1]),
+            np.array([0, 0, 0, 1, 2, 3]),
+            10,
+            np.array([3, 2, 1, 1, 2, 3]),
+        ),
+    ]
+
+    for i, (cond, input_array, pad_width, expected) in enumerate(test_cases):
+        assert np.all(
+            pad_boundary(input_array, cond, pad_width) == expected
+        ), "Test case {} failed".format(i)
+
+    print("test_pad_boundary passed")
+    
+    
 def test_compare_convolve2d_with_padding():
     truncate = 1.0
     sigma = np.sqrt(-1 / (2 * np.log(0.5)))
@@ -380,8 +447,10 @@ make_plots = args.make_plots
 
 # test_gaussian_1d()
 # test_gaussian_2d()
+test_gaussian_filter1d()
+# test_pad_boundary()
 # test_convolve2d_with_condition()
-test_compare_convolve2d_with_padding()
+# test_compare_convolve2d_with_padding()
 # test_smooth_with_condition()
 # test_smooth_2d_histogram(make_plots)
 
