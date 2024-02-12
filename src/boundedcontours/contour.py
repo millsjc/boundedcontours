@@ -6,6 +6,10 @@ from matplotlib import pyplot as plt
 from matplotlib.patches import Polygon
 from scipy.ndimage import gaussian_filter
 
+from . import correlate
+
+gaussian_filter2d = correlate.gaussian_filter2d
+
 
 def level_from_credible_interval(H: np.ndarray, p_level: float = 0.9) -> float:
     """
@@ -94,44 +98,7 @@ def smooth_with_condition(
     assert H.ndim == 2, "H must be a 2D array"
     assert cond.ndim == 2, "cond must be a 2D array"
 
-    # Determine the size of the Gaussian window to use based on truncate and sigma
-    window_radius = int(truncate * sigma + 0.5)
-    print(f"{window_radius=}")
-
-    # Create an array to hold the smoothed image
-    H_smooth = np.zeros_like(H)
-
-    # For each pixel in the image...
-    for i in range(H.shape[0]):
-        for j in range(H.shape[1]):
-            # if not cond[i, j]:
-            #     continue
-            # Define the bounds of the window
-            x_start = max(0, i - window_radius)
-            x_end = min(H.shape[0], i + window_radius + 1)
-            y_start = max(0, j - window_radius)
-            y_end = min(H.shape[1], j + window_radius + 1)
-
-            # Create a Gaussian kernel centered on the pixel
-            x = np.arange(x_start, x_end, dtype=H.dtype)[:, np.newaxis]
-            y = np.arange(y_start, y_end, dtype=H.dtype)
-
-            # should define and normalize this once outside the loop and simply cut it down and renormalize when we are at the edges.
-            kernel = symmetric_2d_gaussian(x, y, i, j, sigma)
-
-            assert kernel.shape == (
-                x_end - x_start,
-                y_end - y_start,
-            ), "kernel has the wrong shape"
-
-            # Zero out the kernel where the condition is not met
-            # kernel[~cond[x_start:x_end, y_start:y_end]] = 0
-
-            # Normalize the kernel so it sums to 1
-            kernel = kernel / np.sum(kernel)
-
-            # Compute the new value for this pixel
-            H_smooth[i, j] = np.sum(kernel * H[x_start:x_end, y_start:y_end])
+    H_smooth = gaussian_filter2d(H, sigma, truncate=truncate, cond=cond)
 
     return H_smooth
 

@@ -6,7 +6,6 @@ from scipy.ndimage import gaussian_filter
 
 from boundedcontours.contour import (
     smooth_with_condition,
-    smooth_2d_histogram,
     contour_at_level,
     contour_plots,
 )
@@ -90,55 +89,11 @@ def test_smooth_with_condition():
     plt.show()
 
 
-def test_smooth_2d_histogram(make_plots=True):
-    x, y = get_test_data()
-
-    # Test cases
-    test_cases = [
-        {"bins": 100, "sigma_smooth": 2.0, "condition": "X>Y"},
-        {"bins": 30, "sigma_smooth": 0.5, "condition": "X>Y"},
-    ]
-
-    # we will only check the largest, middle and smallest non-zero bins
-    expected_output = [
-        np.array([6.27057731e-10, 5.76411762e-03, 1.04055075e-01]),
-        np.array([8.77506173e-10, 5.39031282e-03, 1.17246766e-01]),
-    ]
-    for i, params in enumerate(test_cases):
-        X, Y, H = smooth_2d_histogram(x, y, **params)
-        assert H.shape == (params["bins"], params["bins"]), "Histogram shape mismatch"
-
-        # Check that the largest, middle and smallest non-zero bins are as expected
-        H_flat = H.flatten()[np.flatnonzero(H)]
-        N = len(H_flat)
-        vals_to_check = np.array([0, int(N / 2), N - 1])
-        out = np.partition(H_flat, vals_to_check)[vals_to_check]
-
-        assert np.allclose(out, expected_output[i]), (
-            "Largest, middle and smallest non-zero bins don't match expected values."
-            " Expected: {}, got: {}".format(expected_output[i], out)
-        )
-
-        if make_plots:
-            plt.figure(figsize=(6, 6))
-            plt.pcolormesh(X, Y, H)
-            plt.title(
-                f"Test Case {i+1}: bins={params['bins']},"
-                f" sigma={params['sigma_smooth']}"
-            )
-            plt.colorbar()
-            plt.show()
-
-        print(f"Test Case {i+1} passed")
-
-    print("All tests passed (smooth_2d_histogram)")
-
-
 def test_contour_at_level(
     N=10000,
     bins=100,
     sigma_smooth=1.0,
-    gaussian_filter_kwargs=dict(mode="constant", cval=0.0, truncate=4.0),
+    gaussian_filter_kwargs=dict(mode="constant", cval=0.0),
 ):
     """N is the number of samples to generate. FIXME: This is not suitable for automatic testing, it makes plots."""
     kwargs = dict(
@@ -146,6 +101,7 @@ def test_contour_at_level(
         sigma_smooth=sigma_smooth,
         plot_pcolormesh=True,
         p_levels=[0.5, 0.9],
+        truncate=4.0,
         gaussian_filter_kwargs=gaussian_filter_kwargs,
     )
 
@@ -270,14 +226,13 @@ def test_gaussian_1d():
 
 
 def test_gaussian_filter1d():
-    d = np.array([0, 0, 1, 2, 3, 0, 0, 0, 0, 0])
+    d = np.array([0, 0, 1, 2, 3, 0, 0, 0, 0, 0], dtype=int)
     cond = np.array([0, 0, 1, 1, 1, 1, 1, 1, 1, 1])
     sigma = 1
     truncate = 1
     out = gaussian_filter1d(d, sigma, truncate=truncate, cond=cond)
     print("Sum of output: ", np.sum(out))
     print("Sum of input: ", np.sum(d))
-    breakpoint()
     print("Sum of input where cond is True: ", np.sum(d[cond.astype(bool)]))
 
     d = np.array([0, 0, 1, 3.4, 2.2, 3.4, 1.2, 0, 0, 0])
@@ -369,19 +324,19 @@ def test_convolve2d_with_condition():
     print("Kernel is [0.25, 0.5, 0.25] as expected")
 
 
-parser = argparse.ArgumentParser()
-parser.add_argument("--make_plots", action="store_true")
-args = parser.parse_args()
-make_plots = args.make_plots
+# parser = argparse.ArgumentParser()
+# parser.add_argument("--make_plots", action="store_true")
+# args = parser.parse_args()
+# make_plots = args.make_plots
+make_plots = True
 
-# test_gaussian_1d()
-# test_gaussian_2d()
-# test_gaussian_filter1d()
-# test_convolve2d_with_condition()
-# test_compare_convolve2d_with_padding()
-# test_smooth_with_condition()
-# test_smooth_2d_histogram(make_plots)
+test_gaussian_1d()
+test_gaussian_2d()
+test_gaussian_filter1d()
+test_convolve2d_with_condition()
+test_compare_convolve2d_with_padding()
+test_smooth_with_condition()
 
-# if make_plots:
-#     test_contour_at_level()
-#     test_contour_plots()
+if make_plots:
+    test_contour_at_level()
+    test_contour_plots()

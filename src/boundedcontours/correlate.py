@@ -103,6 +103,8 @@ def gaussian_filter1d(
     if cond is None:
         output = correlate1d(input, weights, axis, output, mode, cval, 0)
     else:
+        if output is None:
+            output = np.zeros_like(input)
         slices = find_non_zero_islands(cond)
         for s in slices:
             output[s] = correlate1d(input[s], weights, axis, output[s], mode, cval, 0)
