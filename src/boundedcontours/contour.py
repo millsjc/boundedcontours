@@ -174,7 +174,7 @@ def smooth_2d_histogram(
         histogram in [x, y] order (not [y, x] as returned by `np.histogram2d`)
     """
 
-    H, bins_x, bins_y = np.histogram2d(x, y, bins=bins, density=True)
+    H, bins_x, bins_y = np.histogram2d(x, y, bins=bins, density=True)  # type: ignore
     X, Y = np.meshgrid((bins_x[1:] + bins_x[:-1]) / 2, (bins_y[1:] + bins_y[:-1]) / 2)
     H = H.T  # output of histogram2d is [y, x] but we want [x, y]
     # do some smoothing
@@ -286,8 +286,8 @@ def get_min_max_sample(
 
 
 def get_2d_bins(
-    x: List[float],
-    y: List[float],
+    x: Union[np.ndarray, List[float]],
+    y: Union[np.ndarray, List[float]],
     target_nbins: int = 100,
     lower_bound_safety_factor: float = 0.7,
     min_bin_width: Union[int, float] = 4,

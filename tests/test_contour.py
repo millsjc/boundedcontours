@@ -4,19 +4,16 @@ import matplotlib.pyplot as plt
 import numpy as np
 from scipy.ndimage import gaussian_filter
 
-from contour import (
+from boundedcontours.contour import (
     smooth_with_condition,
     smooth_2d_histogram,
     contour_at_level,
     contour_plots,
 )
-from correlate import (
+from boundedcontours.correlate import (
     _gaussian_kernel1d,
-    # _gaussian_kernel2d,
-    gaussian_filter_2d_convolve_2d,
     gaussian_filter1d,
     gaussian_filter2d,
-    pad_boundary,
 )
 
 
@@ -58,15 +55,11 @@ def test_smooth_with_condition():
         sigma=sigma_smooth,
         truncate=truncate,
     )
-    H_convolve = gaussian_filter_2d_convolve_2d(
-        H, sigma_smooth, truncate=truncate, cond=cond
-    )
     H_guassian2d = gaussian_filter2d(H, sigma_smooth, truncate=truncate)
     print(
         sum(H.flatten()),
         sum(H_smooth.flatten()),
         sum(H_smooth_no_cond.flatten()),
-        sum(H_convolve.flatten()),
         sum(H_guassian2d.flatten()),
     )
 
@@ -77,22 +70,19 @@ def test_smooth_with_condition():
             f"sum(H) = {sum(H.flatten())}\n"
             f"sum(H_smooth) = {sum(H_smooth.flatten())}\n"
             f"sum(H_smooth_no_cond) = {sum(H_smooth_no_cond.flatten())}\n"
-            f"sum(H_convolve) = {sum(H_convolve.flatten())}\n"
             f"sum(H_guassian2d) = {sum(H_guassian2d.flatten())}\n"
         )
     print(np.all(H_smooth == H))
-    axs = plt.subplots(1, 5, figsize=(10, 5))[1]
-    ax1, ax2, ax3, ax4, ax5 = axs
+    axs = plt.subplots(1, 4, figsize=(10, 5))[1]
+    ax1, ax2, ax3, ax4 = axs
     ax1.pcolormesh(X, Y, H)
     ax1.set_title("before smooth")
     ax2.pcolormesh(X, Y, H_smooth)
     ax2.set_title("after smooth")
     ax3.pcolormesh(X, Y, H_smooth_no_cond)
     ax3.set_title("after (no cond)")
-    ax4.pcolormesh(X, Y, H_convolve)
-    ax4.set_title("(convolve)")
-    ax5.pcolormesh(X, Y, H_guassian2d)
-    ax5.set_title("(gaussian2d)")
+    ax4.pcolormesh(X, Y, H_guassian2d)
+    ax4.set_title("(gaussian2d)")
 
     for ax in axs:
         set_axis(ax)
@@ -318,56 +308,6 @@ def test_gaussian_2d():
         print("gaussian_filter:", out2)
         assert np.allclose(out, out2), "gaussian_filter2d and gaussian_filter disagree"
 
-
-
-def test_pad_boundary():
-    test_cases = [
-        (
-            np.array([0, 0, 1, 1, 1, 0, 0, 0, 0, 0]),
-            np.array([0, 0, 1, 2, 3, 0, 0, 0, 0, 0]),
-            1,
-            np.array([0, 1, 1, 2, 3, 3, 0, 0, 0, 0]),
-        ),
-        (
-            np.array([0, 0, 1, 1, 1, 0, 0, 0, 0, 0]),
-            np.array([0, 0, 1, 2, 3, 0, 0, 0, 0, 0]),
-            3,
-            np.array([2, 1, 1, 2, 3, 3, 2, 1, 0, 0]),
-        ),
-        (
-            np.array([1, 1, 1, 0, 0, 0]),
-            np.array([1, 2, 3, 0, 0, 0]),
-            1,
-            np.array([1, 2, 3, 3, 0, 0]),
-        ),
-        (
-            np.array([0, 0, 0, 1, 1, 1]),
-            np.array([0, 0, 0, 1, 2, 3]),
-            1,
-            np.array([0, 0, 1, 1, 2, 3]),
-        ),
-        (
-            np.array([0, 0, 0, 1, 1, 1]),
-            np.array([0, 0, 0, 1, 2, 3]),
-            3,
-            np.array([3, 2, 1, 1, 2, 3]),
-        ),
-        (
-            np.array([0, 0, 0, 1, 1, 1]),
-            np.array([0, 0, 0, 1, 2, 3]),
-            10,
-            np.array([3, 2, 1, 1, 2, 3]),
-        ),
-    ]
-
-    for i, (cond, input_array, pad_width, expected) in enumerate(test_cases):
-        assert np.all(
-            pad_boundary(input_array, cond, pad_width) == expected
-        ), "Test case {} failed".format(i)
-
-    print("test_pad_boundary passed")
-    
-    
 def test_compare_convolve2d_with_padding():
     truncate = 1.0
     sigma = np.sqrt(-1 / (2 * np.log(0.5)))
@@ -408,17 +348,6 @@ def test_compare_convolve2d_with_padding():
     print("Sum of input:", np.sum(a))
 
     print("\n")
-    print("Again with convolve2d:")
-    start = time.time()
-    out = gaussian_filter_2d_convolve_2d(a, sigma, truncate=truncate)
-    end = time.time()
-    print("gaussian_filter_2d_convolve_2d took", (end - start) * 1000, "milliseconds")
-    print(out)
-    print(f"{expected_output=}")
-    print("Sum of out:", np.sum(out))
-    print("Sum of input:", np.sum(a))
-
-    print("\n")
     print("Again with ndimage.gaussian_filter:")
     start = time.time()
     out = gaussian_filter(a, sigma, truncate=truncate)
@@ -447,8 +376,7 @@ make_plots = args.make_plots
 
 # test_gaussian_1d()
 # test_gaussian_2d()
-test_gaussian_filter1d()
-# test_pad_boundary()
+# test_gaussian_filter1d()
 # test_convolve2d_with_condition()
 # test_compare_convolve2d_with_padding()
 # test_smooth_with_condition()
