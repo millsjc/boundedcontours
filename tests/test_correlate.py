@@ -1,5 +1,7 @@
+import numpy as np
+import scipy.stats
 from boundedcontours.correlate import find_non_zero_islands
-
+from boundedcontours.demo.utils import get_pdf_and_estimates
 
 def test_find_non_zero_islands():
     # Define test cases with expected outputs
@@ -33,10 +35,33 @@ def test_find_non_zero_islands():
             result == expected_output
         ), f"Failed on input {input_array}. Expected {expected_output}, got {result}"
 
-    print("All tests passed!")
+    print("Test passed: test_find_non_zero_islands")
 
 
 def test_gaussian_filter_2d():
+    np.random.seed(1234)
+    p, h, h_smooth, _, h_bounded = get_pdf_and_estimates(
+        sample_size=10,
+        distribution=scipy.stats.multivariate_normal(np.ones(2), np.eye(2)),
+        bin_range=((-3, 3), (-3, 3)),
+        nbins=3,
+        sigma_smooth=1,
+        truncate_smooth=1,
+        condition_func=lambda x, y: x >= y,
+    )
+    expected_output = np.array([
+        [0.0, 0.02182389, 0.0578054],
+        [0.0, 0.02956398, 0.07056665],
+        [0.0, 0.0, 0.07024009],
+    ])
+
+    assert np.allclose(
+        h_bounded, expected_output
+    ), f"Expected {expected_output}, got {h_bounded}"
+    print("Test passed: test_gaussian_filter_2d")
+
+
+def test_gaussian_filter_2d_sympy():
     import numpy as np
     from sympy import (
         Matrix,
@@ -59,3 +84,4 @@ def test_gaussian_filter_2d():
 
 
 test_find_non_zero_islands()
+test_gaussian_filter_2d()

@@ -6,7 +6,6 @@ import scipy.ndimage
 
 # @jit
 def _correlate1d(padded_input, weights, output_dtype=np.float64):
-    # FIXME: change dtype back to floats for zero array (here and below), hacked to allow sympy floats.
     # Ensure input and weights are numpy arrays
     padded_input = np.asarray(padded_input)
     weights = np.asarray(weights)
@@ -34,11 +33,12 @@ def correlate1d(
             input, weights, axis, output, mode, cval, origin=origin
         )
     except (ValueError, RuntimeError):
-        print("Error in scipy.ndimage.correlate1d, using custom correlate1d.")
+        print(
+            "Error in scipy.ndimage.correlate1d, using custom correlate1d with symmetric padding."
+        )
         pw = len(weights) // 2
         padded_input = np.pad(input, (pw, pw), mode="symmetric")
-        output_dtype = input.dtype
-        return _correlate1d(padded_input, weights, output_dtype=output_dtype)
+        return _correlate1d(padded_input, weights, output_dtype=input.dtype)
 
 
 def _gaussian_kernel1d(sigma, radius):
@@ -47,33 +47,6 @@ def _gaussian_kernel1d(sigma, radius):
     phi_x = np.exp(-0.5 / sigma2 * x**2)
     phi_x = phi_x / phi_x.sum()
     return phi_x
-
-
-def find_non_zero_islands(arr):
-    arr = np.array(arr)
-    # Identify all non-zero elements
-    non_zero_indices = np.nonzero(arr)[0]
-
-    if non_zero_indices.size == 0:
-        # No non-zero islands
-        slices = []
-    else:
-        # Find differences between consecutive non-zero indices
-        diffs = np.diff(non_zero_indices)
-        # Identify where the difference is greater than 1, indicating a new island
-        island_starts = non_zero_indices[np.where(diffs > 1)[0] + 1]
-        island_ends = non_zero_indices[np.where(diffs > 1)[0]]
-
-        # Add the start of the first island and the end of the last island
-        island_starts = [non_zero_indices[0]] + island_starts.tolist()
-        island_ends = island_ends.tolist() + [non_zero_indices[-1]]
-
-        # Create slice objects for each island
-        slices = [
-            slice(start, end + 1, None)
-            for start, end in zip(island_starts, island_ends)
-        ]
-    return slices
 
 
 def gaussian_filter1d(
@@ -109,6 +82,33 @@ def gaussian_filter1d(
         for s in slices:
             output[s] = correlate1d(input[s], weights, axis, output[s], mode, cval, 0)
     return output
+
+
+def find_non_zero_islands(arr):
+    arr = np.array(arr)
+    # Identify all non-zero elements
+    non_zero_indices = np.nonzero(arr)[0]
+
+    if non_zero_indices.size == 0:
+        # No non-zero islands
+        slices = []
+    else:
+        # Find differences between consecutive non-zero indices
+        diffs = np.diff(non_zero_indices)
+        # Identify where the difference is greater than 1, indicating a new island
+        island_starts = non_zero_indices[np.where(diffs > 1)[0] + 1]
+        island_ends = non_zero_indices[np.where(diffs > 1)[0]]
+
+        # Add the start of the first island and the end of the last island
+        island_starts = [non_zero_indices[0]] + island_starts.tolist()
+        island_ends = island_ends.tolist() + [non_zero_indices[-1]]
+
+        # Create slice objects for each island
+        slices = [
+            slice(start, end + 1, None)
+            for start, end in zip(island_starts, island_ends)
+        ]
+    return slices
 
 
 def gaussian_filter2d(input, sigma, truncate=4.0, cond=None, output_dtype=np.float64):
