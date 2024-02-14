@@ -1,7 +1,26 @@
+from typing import List
 import numpy as np
 import scipy.ndimage
 
-def find_non_zero_islands(arr):
+
+def find_non_zero_islands(arr: np.ndarray) -> List[slice]:
+    """
+    Find contiguous non-zero islands in a 1D numpy array.
+
+    Parameters
+    ----------
+    arr : np.ndarray
+        Input array in which to find non-zero islands.
+
+    Returns
+    -------
+    List[slice]
+        A list of slice objects, each corresponding to a contiguous non-zero island in the input array.
+
+    Notes
+    -----
+    An island is defined as a sequence of one or more consecutive non-zero elements in the array.
+    """
     arr = np.array(arr)
     non_zero_indices = np.nonzero(arr)[0]
 
@@ -27,17 +46,47 @@ def find_non_zero_islands(arr):
 
 
 def gaussian_filter2d(
-    input,
-    sigma,
-    order=0,
-    output=None,
-    mode="reflect",
-    cval=0.0,
-    truncate=4.0,
+    input: np.ndarray,
+    sigma: float,
+    order: int = 0,
+    output: np.ndarray = None,
+    mode: str = "reflect",
+    cval: float = 0.0,
+    truncate: float = 4.0,
     *,
-    # radius=None,
-    cond=None,
-):
+    cond: np.ndarray = None,
+) -> np.ndarray:
+    """
+    Apply a Gaussian filter to a 2D array, optionally within regions defined by a condition array.
+
+    Parameters
+    ----------
+    input : np.ndarray
+        The input array to filter.
+    sigma : float
+        The standard deviation for Gaussian kernel.
+    order : int, optional
+        The order of the filter along each axis. Default is 0, which means a Gaussian blur.
+    output : np.ndarray, optional
+        The array to store the output of the filter. If None, a new array will be created.
+    mode : str, optional
+        The mode parameter determines how the input array is extended beyond its boundaries. Default is 'reflect'.
+    cval : float, optional
+        Value to fill past edges of input if mode is 'constant'. Default is 0.0.
+    truncate : float, optional
+        Truncate the filter at this many standard deviations. Default is 4.0.
+    cond : np.ndarray, optional
+        An optional condition array. The filter is applied only to the regions where cond is non-zero.
+
+    Returns
+    -------
+    np.ndarray
+        The filtered array.
+
+    Notes
+    -----
+    This function applies a Gaussian filter along each axis of a 2D array, with the ability to apply the filter only within regions specified by a condition array.
+    """
     output = input.copy()
 
     for axis, slice_func in enumerate((
@@ -46,7 +95,7 @@ def gaussian_filter2d(
     )):
         for i in range(input.shape[axis]):
             if cond is None:
-                island_slices = [...]
+                island_slices = [slice(None)]
             else:
                 island_slices = find_non_zero_islands(cond[slice_func(i)])
             for s in island_slices:
