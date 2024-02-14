@@ -36,80 +36,13 @@ def level_from_credible_interval(H: np.ndarray, p_level: float = 0.9) -> float:
     return level
 
 
-def symmetric_2d_gaussian(
-    x: np.ndarray, y: np.ndarray, x_mean: float, y_mean: float, sigma: float = 1
-) -> np.ndarray:
-    return np.exp(-0.5 * ((x - x_mean) ** 2 + (y - y_mean) ** 2) / sigma**2)
-
-
-def smooth_with_condition(
-    H: np.ndarray, cond: np.ndarray, sigma: float = 1.0, truncate: int = 4
-) -> np.ndarray:
-    """Smooth using a Gaussian filter, but only over pixels where the condition is met.
-
-    Parameters
-    ----------
-    H : 2d array
-        the input array in [x, y] order (see Notes)
-    cond : 2d array of bools
-        whether [x,y] meets the condition must be the same shape as H
-    sigma : float, optional
-        the std of the smoothing gaussian, by default 1
-    truncate : int, optional
-        the number of stds to truncate the gaussian at, by default 4
-
-    Returns
-    -------
-    2d array
-        the smoothed array
-
-    Notes
-    -----
-    Input array must be in [x,y] order as required by contour and
-    gaussian_filter, but not returned by histogram2d!
-
-    Examples
-    --------
-    >>> import numpy as np
-    >>> from matplotlib import pyplot as plt
-    >>> from contour import smooth_with_condition
-    >>> x = np.random.normal(0, 1, 1000)
-    >>> y = np.random.normal(0, 1, 1000)
-    >>> H, x_bins, y_bins = np.histogram2d(x, y, bins=100)
-    >>> X, Y = np.meshgrid((x_bins[1:] + x_bins[:-1])/2, (y_bins[1:] + y_bins[:-1])/2)
-    >>> cond = H > 0
-    >>> H_smooth = smooth_with_condition(H, cond, sigma=1, truncate=4)
-    >>> plt.contour(X, Y, H_smooth.T, levels=2, cmap='plasma', label='smoothed')
-    >>> plt.contout(X, Y, H.T, levels=2, cmap='reds', label='original')
-    >>> plt.legend()
-    >>> plt.show()
-
-    Dev Notes
-    ---------
-    Code outline: For each pixel, make a 2d gaussian with that pixel at the centre
-    with a window of size "truncate". It should also be zeroed where
-    the condition "cond" is not met. Normalize it. This will be the
-    weight array. The new value of the pixel is the sum of the weights
-    times the values of the pixels in the window.
-    A good test at the end is that the sum of the final 2d array should
-    be the same as the sum of the original array.
-    """
-    assert H.shape == cond.shape, "H and cond must have the same shape"
-    assert H.ndim == 2, "H must be a 2D array"
-    assert cond.ndim == 2, "cond must be a 2D array"
-
-    H_smooth = gaussian_filter2d(H, sigma, truncate=truncate, cond=cond)
-
-    return H_smooth
-
-
 def smooth_2d_histogram(
     x: np.ndarray,
     y: np.ndarray,
     bins: Union[int, np.ndarray, Tuple[int, int], Tuple[np.ndarray, np.ndarray]] = 100,
     sigma_smooth: float = 1.0,
-    gaussian_filter_kwargs: dict = {},
-    condition: Union[str, None] = None,
+    gaussian_filter2d_kwargs: dict = {},
+    condition_function=None,
     truncate: int = 4,
 ) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
     """Smoothed 2D histogram.
@@ -126,8 +59,8 @@ def smooth_2d_histogram(
         sigma of gaussian filter. Default is 1.
     gaussian_filter_kwargs : dict, optional
         kwargs to pass to `scipy.ndimage.gaussian_filter`. Default is {}.
-    condition : str, optional
-        condition to apply to the histogram. Default is None. Must be one of: "X>Y".
+    condition_function : callable, optional
+        condition to apply to the histogram. Default is None.
     truncate : int, optional
         number of stds to truncate the gaussian at. Default is 4.
 
@@ -144,15 +77,11 @@ def smooth_2d_histogram(
     H, bins_x, bins_y = np.histogram2d(x, y, bins=bins, density=True)  # type: ignore
     X, Y = np.meshgrid((bins_x[1:] + bins_x[:-1]) / 2, (bins_y[1:] + bins_y[:-1]) / 2)
     H = H.T  # output of histogram2d is [y, x] but we want [x, y]
-    # do some smoothing
-    if condition is None:
-        H = gaussian_filter(
-            H, sigma=sigma_smooth, truncate=truncate, **gaussian_filter_kwargs
-        )
-    elif condition.lower() == "x>y":
-        H = smooth_with_condition(H, cond=X > Y, sigma=sigma_smooth, truncate=truncate)
-    else:
-        raise NotImplementedError(f"condition {condition} not implemented")
+
+    cond = condition_function(X, Y) if condition_function is not None else None
+    H = gaussian_filter2d(
+        H, sigma=sigma_smooth, truncate=truncate, cond=cond, **gaussian_filter2d_kwargs
+    )
 
     return X, Y, H
 
@@ -165,8 +94,8 @@ def contour_at_level(
     sigma_smooth: float = 1,
     ax: Optional[mpl.axes.Axes] = None,
     plot_pcolormesh: bool = False,
-    gaussian_filter_kwargs: dict = {},
-    condition: Union[str, None] = None,
+    gaussian_filter2d_kwargs: dict = {},
+    condition_function=None,
     mpl_contour_kwargs=dict(colors="k", linewidths=2, linestyles="--"),
     truncate: int = 4,
 ) -> mpl.axes.Axes:
@@ -191,8 +120,8 @@ def contour_at_level(
     gaussian_filter_kwargs : dict, optional
         Additional keyword arguments to pass to `scipy.ndimage.gaussian_filter`.
         Default is {}.
-    condition : str, optional
-        Condition to apply to the histogram. Default is None. Must be one of: "X>Y".
+    condition_function : callable, optional
+        A function that takes x and y and returns a boolean array of the same shape.
     mpl_contour_kwargs : dict, optional
         Additional keyword arguments to pass to `matplotlib.axes.Axes.contour`.
         Default is dict(colors="k", linewidths=2, linestyles="--").
@@ -209,8 +138,8 @@ def contour_at_level(
         y,
         bins=bins,
         sigma_smooth=sigma_smooth,
-        gaussian_filter_kwargs=gaussian_filter_kwargs,
-        condition=condition,
+        gaussian_filter2d_kwargs=gaussian_filter2d_kwargs,
+        condition_function=condition_function,
         truncate=truncate,
     )
 
@@ -300,7 +229,7 @@ def contour_plots(
     samples_list: List[Tuple[np.ndarray, np.ndarray]],
     labels: List[str],
     axes_labels: List[str],
-    condition: Optional[str] = None,
+    condition_function=None,
     ax: Optional[mpl.axes.Axes] = None,
     legend_ax: Optional[mpl.axes.Axes] = None,
     colors: Optional[List[str]] = None,
@@ -324,8 +253,8 @@ def contour_plots(
         Labels for each set of samples.
     axes_labels : list of str
         Labels for the x and y axes.
-    condition : str, optional
-        Condition to apply to the histogram during smoothing. Default is None. Must be one of: ["X>Y"].
+    condition_function : callable, optional
+        Condition to apply to the histogram during smoothing. Default is None. The function should take x and y as arguments and return a boolean array of the same shape.
     ax : mpl.axes.Axes, optional
         The axes on which to plot the contour. If None, a new axes object is created. Default is None.
     legend_ax : mpl.axes.Axes, optional
@@ -384,7 +313,7 @@ def contour_plots(
         ax = contour_at_level(
             ss[0],
             ss[1],
-            condition=condition,
+            condition_function=condition_function,
             bins=(bins_x, bins_y),
             sigma_smooth=sigma_smooth,
             truncate=truncate,
@@ -427,111 +356,3 @@ def contour_plots(
         )
 
     return ax, legend_ax
-
-
-def shade_mass_gap_region(
-    ax: mpl.axes.Axes,
-    mmax: float = 10000,
-    mmin: float = 0,
-    mass_gap_strict: Tuple[float, float] = (90, 120),
-    mass_gap_loose: Tuple[float, float] = (50, 175),
-) -> mpl.axes.Axes:
-    """Shade the pair instability mass gap region.
-
-    Parameters
-    ----------
-    ax : mpl.axes.Axes
-        The axis to shade
-    mmax : float, optional
-        The maximum mass (M_sun) to shade. Default is 10000.
-    mmin : float, optional
-        The minimum mass (M_sun) to shade. Default is 0.
-    mass_gap_strict : tuple of float, optional
-        The inner mass gap region to shade in darker colour in M_sun. Default is (60, 120).
-    mass_gap_loose : tuple of float, optional
-        The outer mass gap region to shade in lighter colour in M_sun. Default is (50, 175).
-
-    Returns
-    -------
-    mpl.axes.Axes
-        The axis with the shaded region.
-    """
-    for mass_gap, color, alpha in zip(
-        [mass_gap_loose, mass_gap_strict], ["gray", "gray"], [0.1, 0.3]
-    ):
-        reg = Polygon(
-            [
-                [mass_gap[0], mmin],
-                [mass_gap[0], mass_gap[0]],
-                [mass_gap[1], mass_gap[1]],
-                [mmax, mass_gap[1]],
-                [mmax, mass_gap[0]],
-                [mass_gap[1], mass_gap[0]],
-                [mass_gap[1], mmin],
-            ],
-            color=color,
-            alpha=alpha,
-            hatch="//",
-        )
-        ax.add_patch(reg)
-    return ax
-
-
-def shade_undefined_mass_region(
-    ax: mpl.axes.Axes, mmax: float = 10000, mmin: float = 0
-) -> mpl.axes.Axes:
-    """
-    Shades the undefined mass region where m2 > m1 in the plot.
-
-    Parameters
-    ----------
-    ax : mpl.axes.Axes
-        The axes to add the patch to.
-    mmax : float, optional
-        The maximum mass to be plotted. Default is 10000.
-    mmin : float, optional
-        The minimum mass to be plotted. Default is 0.
-
-    Returns
-    -------
-    mpl.axes.Axes
-        The axes with the shaded region added.
-    """
-    reg = Polygon(
-        [[mmin, mmin], [mmin, mmax], [mmax, mmax]],
-        hatch="\\",
-        fill=False,
-        color="gray",
-    )
-    ax.add_patch(reg)
-    return ax
-
-
-def add_injected_value_2d(
-    ax: mpl.axes.Axes, injected_value: List[float]
-) -> mpl.axes.Axes:
-    """
-    Adds a scatter point representing an injected value to the plot.
-
-    Parameters
-    ----------
-    ax : mpl.axes.Axes
-        The axes to add the scatter point to.
-    injected_value : list of float
-        The coordinates of the injected value.
-
-    Returns
-    -------
-    mpl.axes.Axes
-        The axes with the scatter point added.
-    """
-    ax.scatter(
-        injected_value[0],
-        injected_value[1],
-        marker="x",
-        color="k",
-        linewidth=2.0,
-        s=50,
-        zorder=3,
-    )
-    return ax

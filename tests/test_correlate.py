@@ -1,6 +1,6 @@
 import numpy as np
 import scipy.stats
-from boundedcontours.correlate import find_non_zero_islands
+from boundedcontours.correlate import find_non_zero_islands, gaussian_filter2d
 from boundedcontours.demo.utils import get_pdf_and_estimates
 
 def test_find_non_zero_islands():
@@ -83,5 +83,29 @@ def test_gaussian_filter_2d_sympy():
     assert out.sum() == A.sum(), f"Expected sum of {A.sum()}, got {out.sum()}"
 
 
+def plot_ascent():
+    import matplotlib.pyplot as plt
+
+    try:
+        from scipy.datasets import ascent
+    except ImportError:
+        from scipy.misc import ascent
+
+    fig = plt.figure()
+    plt.gray()  # show the filtered result in grayscale
+    ax1 = fig.add_subplot(121)  # left side
+    ax2 = fig.add_subplot(122)  # right side
+    ascent = ascent().astype(float)
+    x, y = np.indices(ascent.shape)
+    cond = x < y
+    result = gaussian_filter2d(ascent, sigma=10, truncate=4, cond=cond, mode="reflect")
+    ax1.imshow(ascent)
+    ax2.imshow(result)
+
+    plt.savefig("/tmp/ascent2.png")
+    plt.show()
+
+
 test_find_non_zero_islands()
 test_gaussian_filter_2d()
+plot_ascent()

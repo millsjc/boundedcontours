@@ -4,19 +4,11 @@ import matplotlib.pyplot as plt
 import numpy as np
 from scipy.ndimage import gaussian_filter
 
-from boundedcontours.contour import (
-    smooth_with_condition,
-    contour_at_level,
-    contour_plots,
-)
-from boundedcontours.correlate import (
-    _gaussian_kernel1d,
-    gaussian_filter1d,
-    gaussian_filter2d,
-)
+from boundedcontours.contour import contour_at_level, contour_plots
+from boundedcontours.correlate import gaussian_filter2d
 
 
-def get_test_data(N=2000):
+def _get_test_data(N=2000):
     # multimodal gaussian mixture
     N_1 = int(N / 2)
     N_2 = N - N_1
@@ -26,67 +18,12 @@ def get_test_data(N=2000):
     return x, y
 
 
-def set_axis(ax, x=(-4, 4), y=(-4, 4)):
+def _set_axis(ax, x=(-4, 4), y=(-4, 4)):
     ax.set_xlabel("x")
     ax.set_ylabel("y")
     ax.set_xlim(x)
     ax.set_ylim(y)
     ax.set_aspect("equal")
-
-
-def test_smooth_with_condition():
-    x, y = get_test_data()
-    bins = 10
-    H, bins_x, bins_y = np.histogram2d(x, y, bins=bins, density=True)
-    X, Y = np.meshgrid((bins_x[1:] + bins_x[:-1]) / 2, (bins_y[1:] + bins_y[:-1]) / 2)
-    cond = X > Y
-    H = H.T  # output of histogram2d is [y, x] but we want [x, y]
-    H[0, :] = 0
-    H[:, 0] = 0
-    H[~cond] = 0
-    sigma_smooth = 1.0
-    truncate = 1.0
-    H_smooth = smooth_with_condition(
-        H, cond=cond, sigma=sigma_smooth, truncate=truncate
-    )
-    H_smooth_no_cond = gaussian_filter(
-        H,
-        sigma=sigma_smooth,
-        truncate=truncate,
-    )
-    H_guassian2d = gaussian_filter2d(H, sigma_smooth, truncate=truncate)
-    print(
-        sum(H.flatten()),
-        sum(H_smooth.flatten()),
-        sum(H_smooth_no_cond.flatten()),
-        sum(H_guassian2d.flatten()),
-    )
-
-    # output the sum of each version of the hist to file
-    fname = "NOWHERE-zeroed_test_smooth_with_condition"
-    with open(f"/tmp/{fname}.txt", "w") as f:
-        f.write(
-            f"sum(H) = {sum(H.flatten())}\n"
-            f"sum(H_smooth) = {sum(H_smooth.flatten())}\n"
-            f"sum(H_smooth_no_cond) = {sum(H_smooth_no_cond.flatten())}\n"
-            f"sum(H_guassian2d) = {sum(H_guassian2d.flatten())}\n"
-        )
-    print(np.all(H_smooth == H))
-    axs = plt.subplots(1, 4, figsize=(10, 5))[1]
-    ax1, ax2, ax3, ax4 = axs
-    ax1.pcolormesh(X, Y, H)
-    ax1.set_title("before smooth")
-    ax2.pcolormesh(X, Y, H_smooth)
-    ax2.set_title("after smooth")
-    ax3.pcolormesh(X, Y, H_smooth_no_cond)
-    ax3.set_title("after (no cond)")
-    ax4.pcolormesh(X, Y, H_guassian2d)
-    ax4.set_title("(gaussian2d)")
-
-    for ax in axs:
-        set_axis(ax)
-    plt.savefig(f"/tmp/{fname}.png")
-    plt.show()
 
 
 def test_contour_at_level(
@@ -115,7 +52,7 @@ def test_contour_at_level(
     err_msg = "Test with multiple credible intervals failed to return an Axes object."
     assert isinstance(ax, mpl.axes.Axes), err_msg
     ax.set_title("Multiple credible intervals")
-    set_axis(ax)
+    _set_axis(ax)
     plt.show()
 
     kwargs["p_levels"] = 0.9
@@ -128,7 +65,7 @@ def test_contour_at_level(
     err_msg = "Test with multimodal data failed."
     assert isinstance(ax, mpl.axes.Axes), err_msg
     ax.set_title("Multimodal data")
-    set_axis(ax, x=(-4, 10), y=(-4, 10))
+    _set_axis(ax, x=(-4, 10), y=(-4, 10))
     plt.show()
 
     # Test data with single boundary
@@ -147,7 +84,7 @@ def test_contour_at_level(
     for ax, opt in zip((ax1, ax2), ("disabled", "enabled")):
         ax.plot(x_array, x_array, color="r", linestyle="--")
         ax.set_title(f"Boundary condition option {opt}")
-        set_axis(ax)
+        _set_axis(ax)
     plt.show()
 
     # Test data with multiple boundaries
@@ -160,7 +97,7 @@ def test_contour_at_level(
     assert isinstance(ax, mpl.axes.Axes), err_msg
     ax.plot(x_array, x_array, color="r", linestyle="--")
     ax.set_title("Data with multiple boundaries")
-    set_axis(ax)
+    _set_axis(ax)
     plt.show()
 
     # Test with array bins
@@ -170,7 +107,7 @@ def test_contour_at_level(
     err_msg = "Test with array bins failed to return an Axes object."
     assert isinstance(ax, mpl.axes.Axes), err_msg
     ax.set_title("Array bins")
-    set_axis(ax)
+    _set_axis(ax)
     plt.show()
 
     # Test with double the smoothing
@@ -179,13 +116,13 @@ def test_contour_at_level(
     err_msg = f"Test with double smoothing (sigma_smooth={s}) failed."
     assert isinstance(ax, mpl.axes.Axes), err_msg
     ax.set_title("More smoothing")
-    set_axis(ax)
+    _set_axis(ax)
     plt.show()
 
 
 def test_contour_plots():
     """Test the contour_plots function. FIXME: This is not suitable for automatic testing, it makes plots."""
-    x, y = get_test_data()
+    x, y = _get_test_data()
     samples_list = [[x, y]]
     labels = [None]
     axes_labels = ["x", "y"]
@@ -195,7 +132,7 @@ def test_contour_plots():
         samples_list,
         labels,
         axes_labels=axes_labels,
-        condition="X>Y",  # enforce m1 > m2 when smoothing histogram
+        condition_function=lambda x, y: x > y,  # enforce x>y when smoothing histogram
         axes_lims=axes_lims,
         linewidth=3,
         target_nbins=100,
@@ -211,36 +148,6 @@ def test_contour_plots():
     )
     ax3.set_title("Multimodal gaussian mixture at 50% and 90% credible intervals")
     plt.show()
-
-
-def test_gaussian_1d():
-    for a in [
-        np.array([1.0, 2.0, 3.0, 4.0, 5.0], dtype=float),
-        np.random.random(10),
-    ]:
-        out = gaussian_filter1d(a, 1)
-        out2 = gaussian_filter(a, 1)
-        print("gaussian_filter1d:", out)
-        print("gaussian_filter:", out2)
-        assert np.allclose(out, out2), "gaussian_filter1d and gaussian_filter disagree"
-
-
-def test_gaussian_filter1d():
-    d = np.array([0, 0, 1, 2, 3, 0, 0, 0, 0, 0], dtype=int)
-    cond = np.array([0, 0, 1, 1, 1, 1, 1, 1, 1, 1])
-    sigma = 1
-    truncate = 1
-    out = gaussian_filter1d(d, sigma, truncate=truncate, cond=cond)
-    print("Sum of output: ", np.sum(out))
-    print("Sum of input: ", np.sum(d))
-    print("Sum of input where cond is True: ", np.sum(d[cond.astype(bool)]))
-
-    d = np.array([0, 0, 1, 3.4, 2.2, 3.4, 1.2, 0, 0, 0])
-    cond = np.array([0, 0, 1, 1, 1, 1, 1, 1, 1, 1])
-    out = gaussian_filter1d(d, sigma, truncate=truncate, cond=cond)
-    print("Sum of output: ", np.sum(out))
-    print("Sum of input: ", np.sum(d))
-    print("Sum of input where cond is True: ", np.sum(d[cond.astype(bool)]))
 
 
 def test_gaussian_2d():
@@ -263,13 +170,10 @@ def test_gaussian_2d():
         print("gaussian_filter:", out2)
         assert np.allclose(out, out2), "gaussian_filter2d and gaussian_filter disagree"
 
-def test_compare_convolve2d_with_padding():
+
+def test_gaussian_2d_compare_with_scipy():
     truncate = 1.0
     sigma = np.sqrt(-1 / (2 * np.log(0.5)))
-    a = np.array([1.0, 2.0, 3.0, 4.0, 5.0], dtype=float)
-    expected_output = np.array([1.42704095, 2.06782203, 3.0, 3.93217797, 4.57295905])
-    print(np.array(gaussian_filter1d(a, 1), dtype=float))
-    print(f"{expected_output=}")
 
     a = np.array(
         [
@@ -292,50 +196,37 @@ def test_compare_convolve2d_with_padding():
     )
     # time the two methods
     import time
+    for cond in [None, a > 20]:
+        print(f"{cond=}")
+        start = time.time()
+        out = np.array(
+            gaussian_filter2d(a, sigma, truncate=truncate, cond=cond), dtype=float
+        )
+        end = time.time()
+        print("gaussian_filter2d took", (end - start) * 1000, "milliseconds")
+        print(out)
+        print(f"{expected_output=}")
+        print("Sum of out:", np.sum(out))
+        print("Sum of input:", np.sum(a))
 
-    start = time.time()
-    out = np.array(gaussian_filter2d(a, sigma, truncate=truncate), dtype=float)
-    end = time.time()
-    print("gaussian_filter2d took", (end - start) * 1000, "milliseconds")
-    print(out)
-    print(f"{expected_output=}")
-    print("Sum of out:", np.sum(out))
-    print("Sum of input:", np.sum(a))
-
-    print("\n")
-    print("Again with ndimage.gaussian_filter:")
-    start = time.time()
-    out = gaussian_filter(a, sigma, truncate=truncate)
-    end = time.time()
-    print("gaussian_filter took", (end - start) * 1000, "milliseconds")
-    print(out)
-    print("Sum of out:", np.sum(out))
-
-
-def test_convolve2d_with_condition():
-    # choose a sigma s.t. the kernel falls to half its value in one pixel steps
-    sigma = np.sqrt(-1 / (2 * np.log(0.5)))
-    # therefore we know the normalized kernal in 1d with a radius of 1 will be
-    # [0.25, 0.5, 0.25]
-    # first test this is in fact the case
-    kernel = _gaussian_kernel1d(sigma, 1)
-    print(f"{kernel=}")
-    assert np.allclose(kernel, np.array([0.25, 0.5, 0.25]))
-    print("Kernel is [0.25, 0.5, 0.25] as expected")
+        print("\n")
+        print("Again with ndimage.gaussian_filter:")
+        start = time.time()
+        out = gaussian_filter(a, sigma, truncate=truncate)
+        end = time.time()
+        print("gaussian_filter took", (end - start) * 1000, "milliseconds")
+        print(out)
+        print("Sum of out:", np.sum(out))
 
 
 # parser = argparse.ArgumentParser()
 # parser.add_argument("--make_plots", action="store_true")
 # args = parser.parse_args()
 # make_plots = args.make_plots
-make_plots = True
+make_plots = False
 
-test_gaussian_1d()
 test_gaussian_2d()
-test_gaussian_filter1d()
-test_convolve2d_with_condition()
-test_compare_convolve2d_with_padding()
-test_smooth_with_condition()
+test_gaussian_2d_compare_with_scipy()
 
 if make_plots:
     test_contour_at_level()
