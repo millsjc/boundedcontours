@@ -20,6 +20,13 @@ def find_non_zero_islands(arr: np.ndarray) -> List[slice]:
     Notes
     -----
     An island is defined as a sequence of one or more consecutive non-zero elements in the array.
+
+    Examples
+    --------
+    >>> import numpy as np
+    >>> from boundedcontours.filter import find_non_zero_islands
+    >>> find_non_zero_islands([0, 0, 0, 0, 1, 1, 1, 0, 0, 1, 1, 1, 0, 0])
+    [slice(4, 7, None), slice(9, 12, None)]
     """
     arr = np.array(arr)
     non_zero_indices = np.nonzero(arr)[0]
@@ -86,6 +93,19 @@ def gaussian_filter2d(
     Notes
     -----
     This function applies a Gaussian filter along each axis of a 2D array, with the ability to apply the filter only within regions specified by a condition array.
+
+    Examples
+    --------
+    >>> import numpy as np
+    >>> from boundedcontours.filter import gaussian_filter2d
+    >>> h = np.array([[1, 2, 3], [4, 5, 6], [7, 8, 9]])
+    >>> x, y = np.indices(h.shape)
+    >>> condition_func = lambda x, y: x >= y
+    >>> x, y = np.indices(h.shape)
+    >>> cond = condition_func(x, y)
+    >>> h[~cond] = 0
+    >>> gaussian_filter2d(h, sigma=1, truncate=1, cond=cond)
+    np.array([[1, 0, 0], [4, 5, 0], [6, 6, 8]])
     """
     output = input.copy()
 
@@ -93,23 +113,32 @@ def gaussian_filter2d(
         lambda i: (i, ...),  # [i, :]
         lambda i: (..., i),  # [:, i]
     )):
-        for i in range(input.shape[axis]):
-            if cond is None:
-                island_slices = [slice(None)]
-            else:
-                island_slices = find_non_zero_islands(cond[slice_func(i)])
-            for s in island_slices:
-                output[slice_func(i)][s] = scipy.ndimage.gaussian_filter1d(
-                    input[slice_func(i)][s],
-                    sigma,
-                    axis=-1,
-                    order=order,
-                    output=output[slice_func(i)][s],
-                    mode=mode,
-                    cval=cval,
-                    truncate=truncate,
-                )
+        if cond is None:
+            output = scipy.ndimage.gaussian_filter1d(
+                input,
+                sigma,
+                axis=axis,
+                order=order,
+                output=output,
+                mode=mode,
+                cval=cval,
+                truncate=truncate,
+            )
 
+        else:  # Apply line by line, island by island
+            for i in range(input.shape[axis]):
+                island_slices = find_non_zero_islands(cond[slice_func(i)])
+                for s in island_slices:
+                    output[slice_func(i)][s] = scipy.ndimage.gaussian_filter1d(
+                        input[slice_func(i)][s],
+                        sigma,
+                        axis=-1,
+                        order=order,
+                        output=output[slice_func(i)][s],
+                        mode=mode,
+                        cval=cval,
+                        truncate=truncate,
+                    )
         input = output
 
     return output

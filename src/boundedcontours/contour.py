@@ -3,12 +3,10 @@ from typing import List, Optional, Tuple, Union
 import matplotlib as mpl
 import numpy as np
 from matplotlib import pyplot as plt
-from matplotlib.patches import Polygon
-from scipy.ndimage import gaussian_filter
 
-from . import correlate
+from . import filter
 
-gaussian_filter2d = correlate.gaussian_filter2d
+gaussian_filter2d = filter.gaussian_filter2d
 
 
 def level_from_credible_interval(H: np.ndarray, p_level: float = 0.9) -> float:
@@ -29,6 +27,9 @@ def level_from_credible_interval(H: np.ndarray, p_level: float = 0.9) -> float:
     # Sort it in descending order and calculate the cumulative probability
     H_flat = sorted(H.flatten(), reverse=True)
     cumulative_prob = np.cumsum(H_flat)
+    # Check if the last element of cumulative_prob is zero before dividing
+    if cumulative_prob[-1] == 0:
+        return 0
     # Find the bin with a cumulative probability greater than the desired
     # level and return the value of the bin
     i_level = np.where(cumulative_prob / cumulative_prob[-1] >= p_level)[0][0]
@@ -185,43 +186,55 @@ def get_2d_bins(
     x: Union[np.ndarray, List[float]],
     y: Union[np.ndarray, List[float]],
     target_nbins: int = 100,
-    lower_bound_safety_factor: float = 0.7,
-    min_bin_width: Union[int, float] = 4,
+    safety_factor: float = 1.4,
+    max_bin_width: Union[int, float] = 4,
 ) -> Tuple[np.ndarray, np.ndarray]:
-    """Attempt to make target_nbins bins, but increase the number of bins
-    until the computed bin width is less than min_bin_width (up to rounding/truncation
-    errors).
+    """Compute the bins for a 2D histogram. Increases data range on each side by safety_factor.
+    Then increases the number of bins until the computed bin width is less than max_bin_width.
 
     Parameters
     ----------
-    x : list of float
-        The data for the x-axis.
-    y : list of float
-        The data for the y-axis.
-    target_nbins : int or float, optional
+    x, y : np.ndarray or list of float
+        The data for the x and y axes, respectively.
+    target_nbins : int, optional
         The desired number of bins. Default is 100.
-    lower_bound_safety_factor : float, optional
-        A factor used to shrink the minimum x and y values to ensure contours drawn nicely. Default is 0.7.
-    min_bin_width : int, optional
-        The minimum bin spacing. If the computed bin width based on the range of the data and the target number of bins is less than this, this value will be used instead. Default is 4.
+    safety_factor : float, optional
+        The factor to increase the data range on each side. Default is 1.4.
+    max_bin_width : int or float, optional
+        The maximum allowed bin spacing. Default is 4.
 
     Returns
     -------
     tuple of np.ndarray
-        A tuple of two 1D numpy arrays containing the bin boundaries for the x and y axes.
+        The bin boundaries for the x and y axes.
     """
+    if target_nbins <= 0:
+        raise ValueError("target_nbins must be positive.")
 
-    def _get_lower_bound(min_value, safety_factor):
-        safety_factor = 1 / safety_factor if min_value < 0 else safety_factor
-        return safety_factor * min_value
+    def _data_range(data):
+        d_min, d_max = np.min(data), np.max(data)
+        d_range = (d_max - d_min) * safety_factor
+        return (
+            d_min - (d_range - (d_max - d_min)) / 2,
+            d_max + (d_range - (d_max - d_min)) / 2,
+        )
 
-    xmin, xmax = _get_lower_bound(min(x), lower_bound_safety_factor), max(x) + 0.5
-    ymin, ymax = _get_lower_bound(min(y), lower_bound_safety_factor), max(y) + 0.5
-    x_width = xmax - xmin
-    y_width = ymax - ymin
-    bin_width = min(min_bin_width, x_width / target_nbins, y_width / target_nbins)
-    x_bins = np.linspace(xmin, xmax, int(x_width / bin_width + 0.5))
-    y_bins = np.linspace(ymin, ymax, int(y_width / bin_width + 0.5))
+    xmin, xmax = _data_range(x)
+    ymin, ymax = _data_range(y)
+
+    # Same bin width for both axes, ensure it's not zero or invalid
+    bin_width = max(
+        min(
+            max_bin_width,
+            (xmax - xmin) / float(target_nbins),
+            (ymax - ymin) / float(target_nbins),
+        ),
+        1e-10,
+    )  # Avoid zero or negative bin width
+
+    x_bins = np.arange(xmin, xmax + bin_width, bin_width)
+    y_bins = np.arange(ymin, ymax + bin_width, bin_width)
+
     return x_bins, y_bins
 
 
@@ -234,7 +247,7 @@ def contour_plots(
     legend_ax: Optional[mpl.axes.Axes] = None,
     colors: Optional[List[str]] = None,
     target_nbins: int = 100,
-    min_bin_width: float = 4,
+    max_bin_width: float = 4,
     linewidth: float = 1.5,
     sigma_smooth: float = 2,
     truncate: int = 4,
@@ -263,8 +276,8 @@ def contour_plots(
         The colors to use for each set of samples. If None, the default matplotlib color cycle is used. Default is None.
     target_nbins : int, optional
         The target number of bins for the histogram. Default is 100.
-    min_bin_width : float, optional
-        The minimum bin width for the histogram, nbins will increase until this is met. Default is 4.
+    max_bin_width : float, optional
+        The maximum bin width for the histogram. Default is 4.
     linewidth : float, optional
         The line width of the contour lines. Default is 1.5.
     sigma_smooth : float, optional
@@ -294,7 +307,7 @@ def contour_plots(
             ss[0],
             ss[1],
             target_nbins=target_nbins,
-            min_bin_width=min_bin_width,
+            max_bin_width=max_bin_width,
             **bins_2d_kwargs,
         )
         linestyle = "-"

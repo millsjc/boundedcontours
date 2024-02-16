@@ -1,6 +1,3 @@
-# Description: Contains classes for generating random samples from 2d distributions
-# and calculating their PDFs.
-
 import numpy as np
 from scipy import stats
 
@@ -16,10 +13,8 @@ class IndependentExponential2d:
         return np.column_stack((x, y))
 
     def pdf(self, xy):
-        # Extract x and y components
         x = xy[..., 0]
         y = xy[..., 1]
-        # Compute the product of PDFs for x and y
         return self.expon_x.pdf(x) * self.expon_y.pdf(y)
 
 
@@ -83,7 +78,7 @@ def sum_constraint(x, y, C=1):
 
 tests = {
     "unconditioned_normal": {
-        "dist": stats.multivariate_normal(np.ones(2), np.eye(2)),
+        "dist": stats.multivariate_normal(np.zeros(2), np.eye(2)),
         "condition": no_condition,
         "bin_range": ((-3, 3), (-3, 3)),
     },
@@ -93,22 +88,22 @@ tests = {
         "bin_range": ((0, 1), (0, 1)),
     },
     "normal_circle": {
-        "dist": stats.multivariate_normal(np.ones(2), np.eye(2)),
+        "dist": stats.multivariate_normal(np.zeros(2), np.eye(2)),
         "condition": in_circle,
         "bin_range": ((-1, 1), (-1, 1)),
     },
     "normal_first_quadrant": {
-        "dist": stats.multivariate_normal(np.ones(2), np.eye(2)),
+        "dist": stats.multivariate_normal(np.zeros(2), np.eye(2)),
         "condition": in_first_quadrant,
         "bin_range": ((-2, 2), (-5, 5)),
     },
     "normal_x_ge_y": {
-        "dist": stats.multivariate_normal(np.ones(2), np.eye(2)),
+        "dist": stats.multivariate_normal(np.zeros(2), np.eye(2)),
         "condition": x_ge_y,
         "bin_range": ((-3.05, 3.05), (-4, 4)),
     },
     "normal_x_le_y_covarying": {
-        "dist": stats.multivariate_normal(np.ones(2), [[1, 0.5], [0.5, 1]]),
+        "dist": stats.multivariate_normal(np.zeros(2), [[1, 0.5], [0.5, 1]]),
         "condition": x_ge_y,
         "bin_range": ((-3, 3), (-3, 3)),
     },

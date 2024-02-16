@@ -8,7 +8,7 @@ from plotly import graph_objects as go
 from plotly.subplots import make_subplots
 import matplotlib.pyplot as plt
 from scipy.ndimage import gaussian_filter
-from boundedcontours.correlate import gaussian_filter2d
+from boundedcontours.filter import gaussian_filter2d
 from boundedcontours.contour import level_from_credible_interval
 
 get_levels = lambda x, p_levels: [level_from_credible_interval(x, p) for p in p_levels]
@@ -58,7 +58,11 @@ def generate_data_and_pdf(
     data = distribution.rvs(sample_size)
     x_data, y_data = data[:, 0], data[:, 1]
 
-    mask = condition_func(x_data, y_data)
+    mask = (
+        condition_func(x_data, y_data)
+        if condition_func is not None
+        else np.ones_like(x_data, dtype=bool)
+    )
     # Calculate the total probability within the bin range and mask
     (x_min, x_max), (y_min, y_max) = bin_range
     within_region = (
@@ -73,7 +77,11 @@ def generate_data_and_pdf(
     # get the pdf values
     pdf_values = distribution.pdf(np.dstack([X, Y]))
     # Truncate and renormalize
-    cond = condition_func(X, Y)
+    cond = (
+        condition_func(X, Y)
+        if condition_func is not None
+        else np.ones_like(X, dtype=bool)
+    )
     pdf_values_truncated = np.where(cond, pdf_values, 0)
 
     pdf_values_truncated = pdf_values_truncated / P_region
@@ -128,8 +136,9 @@ def get_pdf_and_estimates(
     # Smooth the histogram with scipy and boundedcontours
     h_smooth_scipy = gaussian_filter(h, sigma=sigma_smooth, truncate=truncate_smooth)
     h_smooth_scipy_zeroed = h_smooth_scipy.copy()
-    cond = condition_func(X, Y)
-    h_smooth_scipy_zeroed[~cond] = 0
+    cond = condition_func(X, Y) if condition_func is not None else None
+    if cond is not None:
+        h_smooth_scipy_zeroed[~cond] = 0
     h_smooth_bounded = gaussian_filter2d(
         h,
         sigma=sigma_smooth,

@@ -1,233 +1,281 @@
-import argparse
-import matplotlib as mpl
-import matplotlib.pyplot as plt
 import numpy as np
-from scipy.ndimage import gaussian_filter
-
-from boundedcontours.contour import contour_at_level, contour_plots
-from boundedcontours.correlate import gaussian_filter2d
-
-
-def _get_test_data(N=2000):
-    # multimodal gaussian mixture
-    N_1 = int(N / 2)
-    N_2 = N - N_1
-    np.random.seed(0)  # For reproducible results
-    x = np.random.normal(0, 1, N_1) + np.random.normal(0.5, 1, N_2)
-    y = np.random.normal(0, 1, N_1) + np.random.normal(0.5, 1, N_2)
-    return x, y
+from boundedcontours.contour import (
+    level_from_credible_interval,
+    smooth_2d_histogram,
+    contour_at_level,
+    get_2d_bins,
+    contour_plots,
+)
+import matplotlib as mpl
+import pytest
 
 
-def _set_axis(ax, x=(-4, 4), y=(-4, 4)):
-    ax.set_xlabel("x")
-    ax.set_ylabel("y")
-    ax.set_xlim(x)
-    ax.set_ylim(y)
-    ax.set_aspect("equal")
+class TestLevelFromCredibleInterval:
+
+    # returns the correct level for a given histogram and credible interval
+    def test_returns_correct_level_for_given_histogram_and_cri(self):
+        H = np.array([[1, 2, 3], [4, 5, 6], [7, 8, 9]])
+        p_level = 0.5
+        expected_level = 7
+        assert level_from_credible_interval(H, p_level) == expected_level
+
+    # works with a histogram of all zeros
+    def test_works_with_histogram_of_all_zeros(self):
+        H = np.zeros((3, 3))
+        p_level = 0.9
+        expected_level = 0
+        assert level_from_credible_interval(H, p_level) == expected_level
+
+    # works with a histogram of all ones
+    def test_works_with_histogram_of_all_ones(self):
+        H = np.ones((3, 3))
+        p_level = 0.5
+        expected_level = 1
+        assert level_from_credible_interval(H, p_level) == expected_level
+
+    # returns the correct level for a histogram with only one bin
+    def test_returns_correct_level_for_histogram_with_one_bin(self):
+        H = np.array([[5]])
+        p_level = 0.9
+        expected_level = 5
+        assert level_from_credible_interval(H, p_level) == expected_level
+
+    # returns the correct level for a histogram with all values equal to zero except one
+    def test_returns_correct_level_for_histogram_with_all_zeros_except_one(self):
+        H = np.zeros((3, 3))
+        H[1, 1] = 5
+        p_level = 0.9
+        expected_level = 5
+        assert level_from_credible_interval(H, p_level) == expected_level
 
 
-def test_contour_at_level(
-    N=10000,
-    bins=100,
-    sigma_smooth=1.0,
-    gaussian_filter_kwargs=dict(mode="constant", cval=0.0),
-):
-    """N is the number of samples to generate. FIXME: This is not suitable for automatic testing, it makes plots."""
-    kwargs = dict(
-        bins=bins,
-        sigma_smooth=sigma_smooth,
-        plot_pcolormesh=True,
-        p_levels=[0.5, 0.9],
-        truncate=4.0,
-        gaussian_filter_kwargs=gaussian_filter_kwargs,
-    )
+class TestSmooth2dHistogram:
 
-    # Generate some random data
-    np.random.seed(42)
-    x = np.random.normal(size=N)
-    y = np.random.normal(size=N)
+    # Smooths a 2D histogram with empty x and y arrays
+    def test_smooth_2d_histogram_empty_arrays(self):
+        x = np.array([])
+        y = np.array([])
+        X, Y, H = smooth_2d_histogram(x, y)
+        assert isinstance(X, np.ndarray)
+        assert isinstance(Y, np.ndarray)
+        assert isinstance(H, np.ndarray)
+        assert X.shape == (100, 100)
+        assert Y.shape == (100, 100)
+        assert H.shape == (100, 100)
 
-    # Test with multiple credible intervals
-    ax = contour_at_level(x, y, **kwargs)
-    err_msg = "Test with multiple credible intervals failed to return an Axes object."
-    assert isinstance(ax, mpl.axes.Axes), err_msg
-    ax.set_title("Multiple credible intervals")
-    _set_axis(ax)
-    plt.show()
+    # Smooths a 2D histogram with one element in x and y arrays
+    def test_smooth_2d_histogram_one_element(self):
+        x = np.array([1])
+        y = np.array([1])
+        X, Y, H = smooth_2d_histogram(x, y)
+        assert isinstance(X, np.ndarray)
+        assert isinstance(Y, np.ndarray)
+        assert isinstance(H, np.ndarray)
+        assert X.shape == (100, 100)
+        assert Y.shape == (100, 100)
+        assert H.shape == (100, 100)
 
-    kwargs["p_levels"] = 0.9
+    # Smooths a 2D histogram with bins=1
+    def test_smooth_2d_histogram_bins_1(self):
+        x = np.random.randn(1000)
+        y = np.random.randn(1000)
+        bins = 1
+        X, Y, H = smooth_2d_histogram(x, y, bins=bins)
+        assert isinstance(X, np.ndarray)
+        assert isinstance(Y, np.ndarray)
+        assert isinstance(H, np.ndarray)
+        assert X.shape == (bins, bins)
+        assert Y.shape == (bins, bins)
+        assert H.shape == (bins, bins)
 
-    # Test multimodal data
-    x_multi = np.concatenate([x, np.random.normal(loc=5, size=N)])
-    y_multi = np.concatenate([y, np.random.normal(loc=5, size=N)])
+    # Test that with input condition_function=lambda x,y: x>0.5 only the points where X>0.5 are smoothed and the rest are the same as the input.
+    def test_smooth_2d_histogram_condition_function(self):
+        x = np.array([0.1, 0.3, 0.6, 0.8, 0.9])
+        y = np.array([0.2, 0.4, 0.7, 0.9, 1.0])
+        bins = 5
 
-    ax = contour_at_level(x_multi, y_multi, **kwargs)
-    err_msg = "Test with multimodal data failed."
-    assert isinstance(ax, mpl.axes.Axes), err_msg
-    ax.set_title("Multimodal data")
-    _set_axis(ax, x=(-4, 10), y=(-4, 10))
-    plt.show()
+        H_unsmoothed, bins_x, bins_y = np.histogram2d(x, y, bins=bins, density=True)
+        H_unsmoothed = H_unsmoothed.T
 
-    # Test data with single boundary
-    cond = x > y
-    x_b = x[cond]
-    y_b = y[cond]
+        def x_gt_0p5(x, y):
+            return x > 0.5
 
-    # Test data with single boundary, with condition enabled
-    # compare with previous plot
-    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(10, 5))
-    ax1 = contour_at_level(x_b, y_b, ax=ax1, **kwargs)
-    ax2 = contour_at_level(x_b, y_b, ax=ax2, condition="X>Y", **kwargs)
-    err_msg = "Test with data with single boundary and condition option enabled failed."
-    assert isinstance(ax2, mpl.axes.Axes), err_msg
-    x_array = np.linspace(-4, 4, 100)
-    for ax, opt in zip((ax1, ax2), ("disabled", "enabled")):
-        ax.plot(x_array, x_array, color="r", linestyle="--")
-        ax.set_title(f"Boundary condition option {opt}")
-        _set_axis(ax)
-    plt.show()
-
-    # Test data with multiple boundaries
-    cond = (x < 1) & (x > y)
-    x_b = x[cond]
-    y_b = y[cond]
-
-    ax = contour_at_level(x_b, y_b, **kwargs)
-    err_msg = "Test with data with multiple boundaries failed."
-    assert isinstance(ax, mpl.axes.Axes), err_msg
-    ax.plot(x_array, x_array, color="r", linestyle="--")
-    ax.set_title("Data with multiple boundaries")
-    _set_axis(ax)
-    plt.show()
-
-    # Test with array bins
-    bins = np.linspace(-3, 3, 10)
-    kwargs_no_bins = {k: v for k, v in kwargs.items() if k != "bins"}
-    ax = contour_at_level(x, y, bins=bins, **kwargs_no_bins)
-    err_msg = "Test with array bins failed to return an Axes object."
-    assert isinstance(ax, mpl.axes.Axes), err_msg
-    ax.set_title("Array bins")
-    _set_axis(ax)
-    plt.show()
-
-    # Test with double the smoothing
-    s = 2 * kwargs.pop("sigma_smooth")
-    ax = contour_at_level(x, y, sigma_smooth=s, **kwargs)
-    err_msg = f"Test with double smoothing (sigma_smooth={s}) failed."
-    assert isinstance(ax, mpl.axes.Axes), err_msg
-    ax.set_title("More smoothing")
-    _set_axis(ax)
-    plt.show()
-
-
-def test_contour_plots():
-    """Test the contour_plots function. FIXME: This is not suitable for automatic testing, it makes plots."""
-    x, y = _get_test_data()
-    samples_list = [[x, y]]
-    labels = [None]
-    axes_labels = ["x", "y"]
-    axes_lims = [-4, 4]
-    color = "white"
-    ax3, ax2 = contour_plots(
-        samples_list,
-        labels,
-        axes_labels=axes_labels,
-        condition_function=lambda x, y: x > y,  # enforce x>y when smoothing histogram
-        axes_lims=axes_lims,
-        linewidth=3,
-        target_nbins=100,
-        min_bin_width=4,
-        sigma_smooth=3,
-        truncate=6,
-        plot_pcolormesh=True,
-        bins_2d_kwargs=dict(
-            lower_bound_safety_factor=0.5,
-        ),
-        colors=[color],
-        p_levels=[0.5, 0.9],
-    )
-    ax3.set_title("Multimodal gaussian mixture at 50% and 90% credible intervals")
-    plt.show()
-
-
-def test_gaussian_2d():
-    for a in [
-        np.array(
-            [
-                [0, 2, 4, 6, 8],
-                [10, 12, 14, 16, 18],
-                [20, 22, 24, 26, 28],
-                [30, 32, 34, 36, 38],
-                [40, 42, 44, 46, 48],
-            ],
-            dtype=float,
-        ),
-        np.random.random((10, 10)),
-    ]:
-        out = gaussian_filter2d(a, 1)
-        out2 = gaussian_filter(a, 1)
-        print("gaussian_filter2d:", out)
-        print("gaussian_filter:", out2)
-        assert np.allclose(out, out2), "gaussian_filter2d and gaussian_filter disagree"
-
-
-def test_gaussian_2d_compare_with_scipy():
-    truncate = 1.0
-    sigma = np.sqrt(-1 / (2 * np.log(0.5)))
-
-    a = np.array(
-        [
-            [0, 2, 4, 6, 8],
-            [10, 12, 14, 16, 18],
-            [20, 22, 24, 26, 28],
-            [30, 32, 34, 36, 38],
-            [40, 42, 44, 46, 48],
-        ],
-        dtype=float,
-    )
-    expected_output = np.array(
-        [
-            [4, 6, 8, 9, 11],
-            [10, 12, 14, 15, 17],
-            [20, 22, 24, 25, 27],
-            [29, 31, 33, 34, 36],
-            [35, 37, 39, 40, 42],
-        ]
-    )
-    # time the two methods
-    import time
-    for cond in [None, a > 20]:
-        print(f"{cond=}")
-        start = time.time()
-        out = np.array(
-            gaussian_filter2d(a, sigma, truncate=truncate, cond=cond), dtype=float
+        X, Y, H = smooth_2d_histogram(
+            x,
+            y,
+            sigma_smooth=np.sqrt(-1 / (2 * np.log(1 / 2))),
+            truncate=1,
+            condition_function=x_gt_0p5,
+            bins=bins,
         )
-        end = time.time()
-        print("gaussian_filter2d took", (end - start) * 1000, "milliseconds")
-        print(out)
-        print(f"{expected_output=}")
-        print("Sum of out:", np.sum(out))
-        print("Sum of input:", np.sum(a))
 
-        print("\n")
-        print("Again with ndimage.gaussian_filter:")
-        start = time.time()
-        out = gaussian_filter(a, sigma, truncate=truncate)
-        end = time.time()
-        print("gaussian_filter took", (end - start) * 1000, "milliseconds")
-        print(out)
-        print("Sum of out:", np.sum(out))
+        assert np.allclose(H_unsmoothed[~x_gt_0p5(X, Y)], H[~x_gt_0p5(X, Y)])
+        assert not np.allclose(H_unsmoothed[x_gt_0p5(X, Y)], H[x_gt_0p5(X, Y)])
+
+        expected_H = np.array([
+            [7.8125, 0.0, 0.0, 0.0, 0.0],
+            [0.0, 7.8125, 0.0, 0.0, 0.0],
+            [0.0, 0.0, 0.0, 1.46484375, 0.48828125],
+            [0.0, 0.0, 0.0, 3.90625, 3.90625],
+            [0.0, 0.0, 0.0, 4.39453125, 9.27734375],
+        ])
+        assert np.allclose(H, expected_H)
 
 
-# parser = argparse.ArgumentParser()
-# parser.add_argument("--make_plots", action="store_true")
-# args = parser.parse_args()
-# make_plots = args.make_plots
-make_plots = False
+class TestContourAtLevel:
 
-test_gaussian_2d()
-test_gaussian_2d_compare_with_scipy()
+    # Given valid input values for x and y, the function should plot a contour at the level corresponding to the p_levels credible interval.
+    def test_valid_input_values(self):
+        x = np.random.normal(size=1000)
+        y = np.random.normal(size=1000)
+        ax = contour_at_level(x, y, p_levels=0.9, bins=50, sigma_smooth=2.0)
+        assert isinstance(ax, mpl.axes.Axes)
+        assert len(ax.collections) == 1
 
-if make_plots:
-    test_contour_at_level()
-    test_contour_plots()
+    # When p_levels is a float, the function should plot a single contour at the level corresponding to the credible interval.
+    def test_p_levels_float(self):
+        x = np.random.normal(size=1000)
+        y = np.random.normal(size=1000)
+        ax = contour_at_level(x, y, p_levels=0.9, bins=50, sigma_smooth=2.0)
+        assert isinstance(ax, mpl.axes.Axes)
+        assert len(ax.collections) == 1
+
+    # When p_levels is a list of floats, the function should plot multiple contours at the levels corresponding to the credible intervals.
+    def test_p_levels_list(self):
+        x = np.random.normal(size=1000)
+        y = np.random.normal(size=1000)
+        ax = contour_at_level(x, y, p_levels=[0.9, 0.95], bins=50, sigma_smooth=2.0)
+        assert isinstance(ax, mpl.axes.Axes)
+        assert len(ax.collections) == 2
+
+    # When x and y are empty arrays, the function should raise an exception.
+    def test_empty_arrays(self):
+        x = np.array([])
+        y = np.array([])
+        with pytest.raises(Exception):
+            contour_at_level(x, y, p_levels=0.9, bins=50, sigma_smooth=2.0)
+
+    # When bins is a scalar, the function should use the same number of bins for both x and y.
+    def test_bins_scalar(self):
+        x = np.random.normal(size=1000)
+        y = np.random.normal(size=1000)
+        ax = contour_at_level(x, y, p_levels=0.9, bins=50, sigma_smooth=2.0)
+        assert isinstance(ax, mpl.axes.Axes)
+        assert len(ax.collections) == 1
+
+    # When bins is a tuple of arrays, the function should use the specified bin edges for both x and y.
+    def test_bins_tuple(self):
+        x = np.random.normal(size=1000)
+        y = np.random.normal(size=1000)
+        bins = (np.linspace(-5, 5, 10), np.linspace(-5, 5, 10))
+        ax = contour_at_level(x, y, p_levels=0.9, bins=bins, sigma_smooth=2.0)
+        assert isinstance(ax, mpl.axes.Axes)
+        assert len(ax.collections) == 1
+
+    # When condition_function is provided, the function should plot a contour of the 2d histogram that satisfies the condition.
+    def test_condition_function_provided(self):
+        x = np.random.normal(size=1000)
+        y = np.random.normal(size=1000)
+        condition_function = lambda x, y: (x > 0) & (y > 0)
+        ax = contour_at_level(
+            x,
+            y,
+            p_levels=0.9,
+            bins=50,
+            sigma_smooth=2.0,
+            condition_function=condition_function,
+        )
+        assert isinstance(ax, mpl.axes.Axes)
+        assert len(ax.collections) == 1
+
+
+class TestGet2dBins:
+
+    def test_basic_input(self):
+        x, y = np.random.rand(100), np.random.rand(100)
+        x_bins, y_bins = get_2d_bins(x, y)
+        assert len(x_bins) > 0 and len(y_bins) > 0, "Bins should be non-empty"
+
+    def test_max_bin_width_respected(self):
+        max_bin_width = 0.1
+        x, y = np.random.rand(100), np.random.rand(100)
+        x_bins, y_bins = get_2d_bins(x, y, max_bin_width=max_bin_width)
+        assert np.all(
+            np.diff(x_bins) <= max_bin_width
+        ), "Max bin width for x should be respected"
+        assert np.all(
+            np.diff(y_bins) <= max_bin_width
+        ), "Max bin width for y should be respected"
+
+    def test_negative_values_in_data(self):
+        x, y = np.random.randn(100), np.random.randn(100)  # Includes negative values
+        x_bins, y_bins = get_2d_bins(x, y)
+        assert (
+            len(x_bins) > 0 and len(y_bins) > 0
+        ), "Bins should be non-empty even with negative values"
+
+    def test_single_value_data(self):
+        x, y = [0.5], [0.5]
+        x_bins, y_bins = get_2d_bins(x, y)
+        assert (
+            len(x_bins) > 0 and len(y_bins) > 0
+        ), "Bins should be non-empty even with single value data"
+
+    def test_safety_factor(self):
+        x, y = np.random.rand(100), np.random.rand(100)
+        safety_factor = 2.0
+        x_bins, y_bins = get_2d_bins(x, y, safety_factor=safety_factor)
+        expected_x_range = (max(x) - min(x)) * safety_factor
+        expected_y_range = (max(y) - min(y)) * safety_factor
+        assert (
+            x_bins[-1] - x_bins[0] >= expected_x_range
+        ), "Safety factor for x should be respected"
+        assert (
+            y_bins[-1] - y_bins[0] >= expected_y_range
+        ), "Safety factor for y should be respected"
+
+
+class TestContourPlots:
+
+    # Plots the contour for a given list of samples and labels.
+    def test_plot_contour(self):
+        # Create sample data
+        x1 = np.random.normal(0, 1, 1000)
+        y1 = np.random.normal(0, 1, 1000)
+        x2 = np.random.normal(2, 1, 1000)
+        y2 = np.random.normal(2, 1, 1000)
+
+        # Define labels for the samples
+        labels = ["Sample 1", "Sample 2"]
+
+        # Define labels for the x and y axes
+        axes_labels = ["X", "Y"]
+
+        # Create a list of tuples containing the x and y samples
+        samples_list = [(x1, y1), (x2, y2)]
+
+        # Invoke the contour_plots function with condition_function=lambda x, y: x<y
+        ax, legend_ax = contour_plots(
+            samples_list,
+            labels,
+            axes_labels=axes_labels,
+            condition_function=lambda x, y: x < y,
+            ax=None,
+            legend_ax=None,
+            colors=None,
+            target_nbins=100,
+            max_bin_width=4,
+            linewidth=1.5,
+            sigma_smooth=2,
+            truncate=4,
+            p_levels=[0.9],
+            axes_lims=None,
+            bins_2d_kwargs={},
+            plot_pcolormesh=False,
+        )
+
+        # Assert that the ax object is of type mpl.axes.Axes
+        assert isinstance(ax, mpl.axes.Axes)
+        # Check axis labels
+        assert ax.get_xlabel() == "X"
+        assert ax.get_ylabel() == "Y"
