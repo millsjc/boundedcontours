@@ -2,7 +2,6 @@ import numpy as np
 from scipy.ndimage import gaussian_filter
 from boundedcontours.filter import find_non_zero_islands, gaussian_filter2d
 
-
 def test_find_non_zero_islands():
     # Define test cases with expected outputs
     test_cases = [
@@ -16,14 +15,14 @@ def test_find_non_zero_islands():
         ),
         ([0, 0, 0, 1], [slice(3, 4, None)]),
         ([1, 0, 1, 0, 1], [slice(0, 1, None), slice(2, 3, None), slice(4, 5, None)]),
-        ([0, 0, 0, 0], []),  # Test with all zeros
-        ([1, 1, 1, 1], [slice(0, 4, None)]),  # Test with all ones
+        ([0, 0, 0, 0], []),
+        ([1, 1, 1, 1], [slice(0, 4, None)]),
         # Alternating zeros and ones
         (
             [0, 1, 0, 1, 0, 1, 0],
             [slice(1, 2, None), slice(3, 4, None), slice(5, 6, None)],
         ),
-        # Single island of length 5 surrounded by a single zero on each side
+        # Single island with a zero at each end
         ([0, 1, 1, 1, 1, 1, 0], [slice(1, 6, None)]),
     ]
 

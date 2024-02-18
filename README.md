@@ -1,3 +1,6 @@
-This package provides tools for creating 2D contour plots with additional capabilities beyond those offered by the standard corner.py library. Featuring:
+Gaussian smoothing for 2D arrays while obeying boundaries. This is useful for smoothing a noisy 2d histogram but where some condition must be met e.g. x>y. In the default setting this is achieved by reflecting the array about the boundary before convolution with the kernel. See the [notebook](examples/bounded_smoothing_and_contours.ipynb) for a demonstration.
 
-1. **Smoothing with conditions:** Gaussian smoothing for 2D histograms, with the capability to apply smoothing while obeying specific conditions such as boundaries. This is useful for smoothing data that is bounded, such as and m1 and m2 masses of a binary black hole system, where m1 > m2. The condition is enforced by simply renormalizing the Gaussian kernel to account for the fact that the kernel is being truncated at the boundary. 
+To install:
+```bash
+pip install boundedcontours
+```
