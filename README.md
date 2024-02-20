@@ -2,12 +2,12 @@ Gaussian smoothing for 2D arrays where some condition must be maintained e.g. x>
 
 To install:
 ```bash
-pip install boundedcontours
+python -m pip install boundedcontours
 ```
 
 Or from source:
 ```bash
 git clone https://github.com/millsjc/boundedcontours
 cd boundedcontours
-pip install .
+python -m pip install .
 ```
