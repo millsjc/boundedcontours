@@ -62,7 +62,7 @@ def test_gaussian_filter_2d():
         [[1.125, 1.25, 1.125], [1.25, 1.5, 1.25], [1.125, 1.25, 1.125]]
     )
     assert np.allclose(
-        h_bounded, expected_output
+        h_bounded, expected_output, atol=1e-10
     ), f"Expected {expected_output}, got {h_bounded}"
     print("Test passed: test_gaussian_filter_2d_without_cond")
 

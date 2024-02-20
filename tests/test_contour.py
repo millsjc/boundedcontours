@@ -211,10 +211,10 @@ class TestGet2dBins:
         rx = x_bins[-1] - x_bins[0]
         ry = y_bins[-1] - y_bins[0]
         assert rx >= expected_x_range or math.isclose(
-            rx - expected_x_range, 0
+            rx - expected_x_range, 0, abs_tol=1e-10
         ), "Safety factor for x is not enforced correctly"
         assert ry >= expected_y_range or math.isclose(
-            ry - expected_y_range, 0
+            ry - expected_y_range, 0, abs_tol=1e-10
         ), "Safety factor for y is not enforced correctly"
 
 class TestContourPlots:
