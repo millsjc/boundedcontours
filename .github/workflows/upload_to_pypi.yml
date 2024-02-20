@@ -2,7 +2,8 @@ name: publish
 
 on:
     release:
-        types: [created]
+        types: [created, published, edited, released]
+    workflow_dispatch:
 
 jobs:
     upload_pypi:
@@ -13,6 +14,6 @@ jobs:
               name: artifact
               path: dist
 
-          - uses: pypa/gh-action-pypi-publish@v1
+          - uses: pypa/gh-action-pypi-publish@v1.8.11
             with:
               password: ${{ secrets.PYPI_API_KEY }}

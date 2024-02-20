@@ -6,8 +6,16 @@ name: test
 on:
   push:
     branches: [ "main" ]
+    paths-ignore:
+      - 'docs/**'
+      - '*.md'
+      - 'examples/**'
   pull_request:
     branches: [ "main" ]
+    paths-ignore:
+      - 'docs/**'
+      - '*.md'
+      - 'examples/**'
 
 jobs:
   build:

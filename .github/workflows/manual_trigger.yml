@@ -1,0 +1,36 @@
+name: manually_triggered_workflow
+
+on:
+    workflow_dispatch:
+      inputs:
+        name:
+          description: 'Person to greet'
+          required: true
+          default: 'Mona the Octocat'
+
+        home:
+          description: 'location'
+          required: false
+          default: 'The Octoverse'
+            
+        perform_deploy:
+          required: true
+          type: boolean
+    release:
+      types: [published, created, edited, deleted, prereleased, released]
+    push:
+        branches:
+            - CI
+        tags:
+            - "*"
+
+jobs:
+    say-hello:
+      runs-on: ubuntu-latest
+      steps:
+        - name: Greet
+          run: |
+            echo "Hello, world!"
+            # print the github.ref
+            echo "github.ref: ${{ github.ref }}"
+            # print the github.event_name
