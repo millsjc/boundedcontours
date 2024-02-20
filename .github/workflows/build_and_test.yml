@@ -1,15 +1,13 @@
 # This workflow will install dependencies and run pytest with a variety of Python versions
 # For more information see: https://docs.github.com/en/actions/automating-builds-and-tests/building-and-testing-python
 
-name: Python package
+name: test
 
 on:
   push:
     branches: [ "main" ]
   pull_request:
     branches: [ "main" ]
-  release:
-    types: [created]
 
 jobs:
   build:
@@ -36,17 +34,3 @@ jobs:
     - name: Test with pytest
       run: |
         pytest
-
-  upload_pypi:
-    needs: [build]
-    runs-on: ubuntu-latest
-    if: github.event_name == 'release' && github.event.action == 'created'
-    steps:
-      - uses: actions/download-artifact@v4
-        with:
-          name: artifact
-          path: dist
-
-      - uses: pypa/gh-action-pypi-publish@v1
-        with:
-          password: ${{ secrets.PYPI_API_KEY }}
