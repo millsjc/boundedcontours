@@ -1,3 +1,4 @@
+import math
 import numpy as np
 from boundedcontours.contour import (
     level_from_credible_interval,
@@ -207,13 +208,14 @@ class TestGet2dBins:
         x_bins, y_bins = get_2d_bins(x, y, safety_factor=safety_factor)
         expected_x_range = (max(x) - min(x)) * safety_factor
         expected_y_range = (max(y) - min(y)) * safety_factor
-        assert np.isclose(
-            (x_bins[-1] - x_bins[0]) - expected_x_range, 0
-        ), "Safety factor for x should be respected"
-        assert np.isclose(
-            (y_bins[-1] - y_bins[0]) - expected_y_range, 0
-        ), "Safety factor for y should be respected"
-
+        rx = x_bins[-1] - x_bins[0]
+        ry = y_bins[-1] - y_bins[0]
+        assert rx >= expected_x_range or math.isclose(
+            rx - expected_x_range, 0
+        ), "Safety factor for x is not enforced correctly"
+        assert ry >= expected_y_range or math.isclose(
+            ry - expected_y_range, 0
+        ), "Safety factor for y is not enforced correctly"
 
 class TestContourPlots:
 

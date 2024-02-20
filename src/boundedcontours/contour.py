@@ -213,11 +213,9 @@ def get_2d_bins(
 
     def _data_range(data):
         d_min, d_max = np.min(data), np.max(data)
-        d_range = (d_max - d_min) * safety_factor
-        return (
-            d_min - (d_range - (d_max - d_min)) / 2,
-            d_max + (d_range - (d_max - d_min)) / 2,
-        )
+        a = d_max - d_min
+        r = a * (safety_factor - 1) / 2
+        return d_min - r, d_max + r
 
     xmin, xmax = _data_range(x)
     ymin, ymax = _data_range(y)
