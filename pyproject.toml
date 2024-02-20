@@ -14,11 +14,11 @@ dependencies = [
     "numpy",
     "matplotlib>=2.1",
     "scipy",
-    "plotly",
 ]
 
 [project.optional-dependencies]
 test = ["pytest"]
+examples = ["plotly", "ipython"]
 
 [project.urls]
 Homepage = "https://github.com/millsjc/boundedcontours"
