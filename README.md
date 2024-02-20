@@ -1,6 +1,13 @@
-Gaussian smoothing for 2D arrays while obeying boundaries. This is useful for smoothing a noisy 2d histogram but where some condition must be met e.g. x>y. In the default setting this is achieved by reflecting the array about the boundary before convolution with the kernel. See the [notebook](examples/bounded_smoothing_and_contours.ipynb) for a demonstration.
+Gaussian smoothing for 2D arrays where some condition must be maintained e.g. x>y. In the default setting this is achieved by a reflection about the boundary before the kernel convolution. See example [notebook](https://github.com/millsjc/boundedcontours/blob/main/examples/bounded_smoothing_and_contours.ipynb).
 
 To install:
 ```bash
 pip install boundedcontours
+```
+
+Or from source:
+```bash
+git clone https://github.com/millsjc/boundedcontours
+cd boundedcontours
+pip install .
 ```

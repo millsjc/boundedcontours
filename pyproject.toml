@@ -1,3 +1,29 @@
+[project]
+name = "boundedcontours"
+version = "0.0.2"
+description = "Bounded smoothing of 2d arrays/histograms and contour plotting"
+readme = "README.md"
+requires-python = ">=3.8"
+license = { text = "BSD 2-Clause License" }
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: BSD License",
+    "Operating System :: OS Independent",
+]
+dependencies = [
+    "numpy",
+    "matplotlib>=2.1",
+    "scipy",
+    "plotly",
+]
+
+[project.optional-dependencies]
+test = ["pytest"]
+
+[project.urls]
+Homepage = "https://github.com/millsjc/boundedcontours"
+Issues = "https://github.com/millsjc/boundedcontours/issues"
+
 [build-system]
 requires = ["setuptools", "wheel"]
 
