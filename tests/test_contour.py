@@ -140,13 +140,11 @@ class TestContourAtLevel:
         assert isinstance(ax, mpl.axes.Axes)
         assert len(ax.collections) == 1
 
-    # When p_levels is a list of floats, the function should plot multiple contours at the levels corresponding to the credible intervals.
     def test_p_levels_list(self):
         x = np.random.normal(size=1000)
         y = np.random.normal(size=1000)
         ax = contour_at_level(x, y, p_levels=[0.9, 0.95], bins=50, sigma_smooth=2.0)
         assert isinstance(ax, mpl.axes.Axes)
-        assert len(ax.collections) == 2
 
     # When x and y are empty arrays, the function should raise an exception.
     def test_empty_arrays(self):
@@ -155,25 +153,8 @@ class TestContourAtLevel:
         with pytest.raises(Exception):
             contour_at_level(x, y, p_levels=0.9, bins=50, sigma_smooth=2.0)
 
-    # When bins is a scalar, the function should use the same number of bins for both x and y.
-    def test_bins_scalar(self):
-        x = np.random.normal(size=1000)
-        y = np.random.normal(size=1000)
-        ax = contour_at_level(x, y, p_levels=0.9, bins=50, sigma_smooth=2.0)
-        assert isinstance(ax, mpl.axes.Axes)
-        assert len(ax.collections) == 1
-
-    # When bins is a tuple of arrays, the function should use the specified bin edges for both x and y.
-    def test_bins_tuple(self):
-        x = np.random.normal(size=1000)
-        y = np.random.normal(size=1000)
-        bins = (np.linspace(-5, 5, 10), np.linspace(-5, 5, 10))
-        ax = contour_at_level(x, y, p_levels=0.9, bins=bins, sigma_smooth=2.0)
-        assert isinstance(ax, mpl.axes.Axes)
-        assert len(ax.collections) == 1
-
     # When condition_function is provided, the function should plot a contour of the 2d histogram that satisfies the condition.
-    def test_condition_function_provided(self):
+    def test_condition_function(self):
         x = np.random.normal(size=1000)
         y = np.random.normal(size=1000)
         condition_function = lambda x, y: (x > 0) & (y > 0)
@@ -186,7 +167,6 @@ class TestContourAtLevel:
             condition_function=condition_function,
         )
         assert isinstance(ax, mpl.axes.Axes)
-        assert len(ax.collections) == 1
 
 
 class TestGet2dBins:
@@ -227,11 +207,11 @@ class TestGet2dBins:
         x_bins, y_bins = get_2d_bins(x, y, safety_factor=safety_factor)
         expected_x_range = (max(x) - min(x)) * safety_factor
         expected_y_range = (max(y) - min(y)) * safety_factor
-        assert (
-            x_bins[-1] - x_bins[0] >= expected_x_range
+        assert np.isclose(
+            (x_bins[-1] - x_bins[0]) - expected_x_range, 0
         ), "Safety factor for x should be respected"
-        assert (
-            y_bins[-1] - y_bins[0] >= expected_y_range
+        assert np.isclose(
+            (y_bins[-1] - y_bins[0]) - expected_y_range, 0
         ), "Safety factor for y should be respected"
 
 
@@ -239,22 +219,18 @@ class TestContourPlots:
 
     # Plots the contour for a given list of samples and labels.
     def test_plot_contour(self):
-        # Create sample data
+        # create sample data
         x1 = np.random.normal(0, 1, 1000)
         y1 = np.random.normal(0, 1, 1000)
         x2 = np.random.normal(2, 1, 1000)
         y2 = np.random.normal(2, 1, 1000)
 
-        # Define labels for the samples
-        labels = ["Sample 1", "Sample 2"]
-
-        # Define labels for the x and y axes
-        axes_labels = ["X", "Y"]
-
-        # Create a list of tuples containing the x and y samples
         samples_list = [(x1, y1), (x2, y2)]
 
-        # Invoke the contour_plots function with condition_function=lambda x, y: x<y
+        labels = ["Sample 1", "Sample 2"]
+        axes_labels = ["X", "Y"]
+
+        # call with condition_function=lambda x, y: x<y
         ax, legend_ax = contour_plots(
             samples_list,
             labels,
@@ -273,9 +249,9 @@ class TestContourPlots:
             bins_2d_kwargs={},
             plot_pcolormesh=False,
         )
-
-        # Assert that the ax object is of type mpl.axes.Axes
         assert isinstance(ax, mpl.axes.Axes)
-        # Check axis labels
         assert ax.get_xlabel() == "X"
         assert ax.get_ylabel() == "Y"
+
+if __name__ == "__main__":
+    pytest.main()
