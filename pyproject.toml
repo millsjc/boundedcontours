@@ -1,6 +1,6 @@
 [project]
 name = "boundedcontours"
-version = "0.0.4"
+version = "0.0.2"
 description = "Bounded smoothing of 2d arrays/histograms and contour plotting"
 readme = "README.md"
 requires-python = ">=3.8"
